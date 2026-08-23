@@ -38,6 +38,11 @@ usda: ## Імпорт довідника USDA (~7 200 продуктів) + ук
 	$(PHP) php bin/console app:import-usda-products
 	$(PHP) php bin/console app:import-ingredient-translations
 
+test: ## Тести PHPUnit (готує тестову БД familydiet_test)
+	$(PHP) php bin/console doctrine:database:create --env=test --if-not-exists
+	$(PHP) php bin/console doctrine:migrations:migrate --env=test --no-interaction
+	$(PHP) php bin/phpunit
+
 sh: ## Шел у php-контейнері
 	$(PHP) sh
 
