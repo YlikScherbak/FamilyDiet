@@ -210,6 +210,11 @@ onMounted(async () => {
   vertical-align: top;
   cursor: pointer;
 }
+/* Вертикальні розділювачі між днями, щоб колонки не зливались */
+.calendar td.cell,
+.calendar thead th:not(:first-child) {
+  border-left: 1px solid var(--border);
+}
 .entry {
   margin-bottom: 4px;
   font-size: 13px;
