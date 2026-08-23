@@ -184,9 +184,9 @@ onMounted(load)
 
             <div v-for="item in bySlot(slot.value)" :key="item.key" class="item">
               <span class="item-name" :title="entryName(item)">{{ entryName(item) }}</span>
-              <span v-if="item.nutrition" class="muted item-kcal">{{
-                Math.round(item.nutrition.kcal)
-              }}</span>
+              <span v-if="item.nutrition" class="muted item-kcal"
+                >{{ Math.round(item.nutrition.kcal) }}&nbsp;ккал</span
+              >
               <button class="small danger" @click="removeItem(item)">✕</button>
             </div>
 
@@ -311,8 +311,9 @@ onMounted(load)
   white-space: nowrap;
 }
 .item-kcal {
-  min-width: 40px;
+  min-width: 64px;
   text-align: right;
+  white-space: nowrap;
 }
 .item button {
   visibility: hidden;

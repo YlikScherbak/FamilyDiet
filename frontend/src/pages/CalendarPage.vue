@@ -145,8 +145,8 @@ onMounted(async () => {
                   <span class="entry-name" @click="openEditor(day.date, member)">{{
                     entryShort(entry)
                   }}</span>
-                  <span v-if="entry.nutrition" class="muted">
-                    {{ Math.round(entry.nutrition.kcal) }}</span
+                  <span v-if="entry.nutrition" class="muted entry-kcal"
+                    >{{ Math.round(entry.nutrition.kcal) }}&nbsp;ккал</span
                   >
                   <button class="small danger" @click.stop="removeEntry(entry)">✕</button>
                 </div>
@@ -217,6 +217,10 @@ onMounted(async () => {
 }
 .entry-name {
   color: var(--primary);
+}
+.entry-kcal {
+  margin-left: 4px;
+  white-space: nowrap;
 }
 .entry-name:hover {
   text-decoration: underline;
