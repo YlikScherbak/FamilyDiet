@@ -24,9 +24,7 @@ abstract class ApiTestCase extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        $em = static::getContainer()->get(EntityManagerInterface::class);
-        \assert($em instanceof EntityManagerInterface);
-        $this->em = $em;
+        $this->em = static::getContainer()->get(EntityManagerInterface::class);
     }
 
     /** @param array<string, mixed> $payload */

@@ -38,6 +38,9 @@ usda: ## Імпорт довідника USDA (~7 200 продуктів) + ук
 	$(PHP) php bin/console app:import-usda-products
 	$(PHP) php bin/console app:import-ingredient-translations
 
+stan: ## Статичний аналіз PHPStan (level 8)
+	$(PHP) php -d memory_limit=1G vendor/bin/phpstan analyse --no-progress
+
 test: ## Тести PHPUnit (готує тестову БД familydiet_test)
 	$(PHP) php bin/console doctrine:database:create --env=test --if-not-exists
 	$(PHP) php bin/console doctrine:migrations:migrate --env=test --no-interaction

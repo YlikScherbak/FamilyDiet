@@ -162,6 +162,7 @@ class DishController extends AbstractController
         return $this->json($this->format($dish), $successStatus);
     }
 
+    /** @return array<string, mixed> */
     private function format(Dish $dish): array
     {
         return [

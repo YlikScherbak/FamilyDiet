@@ -283,7 +283,11 @@ class MealPlanController extends AbstractController
 
             foreach ($source as $entry) {
                 /** @var MealPlanEntry $entry */
-                $offsetDays = (int) $sourceFrom->diff($entry->getDate())->format('%a');
+                $entryDate = $entry->getDate();
+                if ($entryDate === null) {
+                    continue;
+                }
+                $offsetDays = (int) $sourceFrom->diff($entryDate)->format('%a');
                 $copy = (new MealPlanEntry())
                     ->setDate($targetFrom->modify(sprintf('+%d days', $offsetDays)))
                     ->setFamilyMember($entry->getFamilyMember())

@@ -43,10 +43,10 @@ class ImportIngredientTranslationsCommand extends Command
 
         $translations = [];
         while (($row = fgetcsv($handle, 0, ';', '"', '\\')) !== false) {
-            if (count($row) < 2 || !is_numeric($row[0]) || trim($row[1]) === '') {
+            if (count($row) < 2 || !is_numeric($row[0]) || trim((string) $row[1]) === '') {
                 continue;
             }
-            $translations[(int) $row[0]] = mb_substr(trim($row[1]), 0, 300);
+            $translations[(int) $row[0]] = mb_substr(trim((string) $row[1]), 0, 300);
         }
         fclose($handle);
 

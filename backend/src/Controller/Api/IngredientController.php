@@ -134,7 +134,7 @@ class IngredientController extends AbstractController
             ->setProteinPer100((float) ($data['proteinPer100'] ?? 0))
             ->setFatPer100((float) ($data['fatPer100'] ?? 0))
             ->setCarbsPer100((float) ($data['carbsPer100'] ?? 0))
-            ->setPieceWeightGrams(isset($data['pieceWeightGrams']) && $data['pieceWeightGrams'] !== null && $data['pieceWeightGrams'] !== '' ? (float) $data['pieceWeightGrams'] : null);
+            ->setPieceWeightGrams(isset($data['pieceWeightGrams']) && $data['pieceWeightGrams'] !== '' ? (float) $data['pieceWeightGrams'] : null);
 
         if ($ingredient->getUnit() === Unit::Pieces && $ingredient->getPieceWeightGrams() === null) {
             return $this->json(['errors' => ['pieceWeightGrams' => 'Для штучних інгредієнтів вкажіть вагу 1 шт у грамах']], 422);
@@ -156,6 +156,7 @@ class IngredientController extends AbstractController
         return $this->json($this->format($ingredient), $successStatus);
     }
 
+    /** @return array<string, mixed> */
     private function format(Ingredient $i): array
     {
         return [
