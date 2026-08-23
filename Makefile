@@ -34,6 +34,9 @@ migrate: ## Накатити міграції БД
 fixtures: ## Засіяти демо-дані (ОЧИЩАЄ базу: меню, вага і власні страви зникнуть)
 	$(PHP) php bin/console doctrine:fixtures:load --no-interaction
 
+demo: ## Демо-дані для огляду: меню на поточний тиждень + історія ваги (перезаписує їх!)
+	$(PHP) php bin/console app:seed-demo
+
 usda: ## Імпорт довідника USDA (~7 200 продуктів) + українські назви; ідемпотентно, базу не чистить
 	$(PHP) php bin/console app:import-usda-products
 	$(PHP) php bin/console app:import-ingredient-translations
