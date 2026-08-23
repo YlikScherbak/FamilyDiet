@@ -1,0 +1,10 @@
+.idea/
+*.log
+.DS_Store
+
+# Авторський план харчування від нутриціолога — не для публікації
+.docs/simeinyi_plan_kharchuvannia_21_dniv.pdf
+
+# Робочі нотатки та сирі вихідні дані (оброблена копія — backend/data/usda_names_uk.csv)
+.docs/familydiet-audit.md
+.docs/familydiet_public_ingredient_uk.csv
