@@ -18,6 +18,7 @@ const router = createRouter({
       component: () => import('../pages/IngredientsPage.vue'),
     },
     { path: '/weight', name: 'weight', component: () => import('../pages/WeightPage.vue') },
+    { path: '/health', name: 'health', component: () => import('../pages/HealthPage.vue') },
   ],
 })
 

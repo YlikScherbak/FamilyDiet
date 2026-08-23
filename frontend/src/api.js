@@ -49,6 +49,18 @@ export const UNITS = [
   { value: 'pcs', label: 'шт' },
 ]
 
+export const HEALTH_EVENT_TYPES = [
+  { value: 'pressure', label: 'Тиск і пульс', icon: '🩺', color: '#2f6b4f', structured: true },
+  { value: 'headache', label: 'Головний біль', icon: '🤕', color: '#b45309', severity: true },
+  { value: 'migraine', label: 'Мігрень', icon: '🌩️', color: '#b91c1c', severity: true },
+  { value: 'medication', label: 'Ліки', icon: '💊', color: '#1d4ed8' },
+  { value: 'symptom', label: 'Симптом', icon: '🤒', color: '#a16207', severity: true },
+  { value: 'note', label: 'Нотатка', icon: '📝', color: '#52525b' },
+  { value: 'custom', label: 'Інше (своя назва)', icon: '📌', color: '#6d28d9', custom: true },
+]
+
+export const healthType = (v) => HEALTH_EVENT_TYPES.find((t) => t.value === v)
+
 export const slotLabel = (v) => MEAL_SLOTS.find((s) => s.value === v)?.label ?? v
 export const categoryLabel = (v) => INGREDIENT_CATEGORIES.find((c) => c.value === v)?.label ?? v
 export const unitLabel = (v) => UNITS.find((u) => u.value === v)?.label ?? v
