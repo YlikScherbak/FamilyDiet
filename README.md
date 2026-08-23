@@ -1,5 +1,7 @@
 # FamilyDiet
 
+[![CI](https://github.com/YlikScherbak/FamilyDiet/actions/workflows/ci.yml/badge.svg)](https://github.com/YlikScherbak/FamilyDiet/actions/workflows/ci.yml)
+
 Локальний застосунок ведення сімейної дієти на основі 21-денного плану харчування
 від нутриціолога (сам PDF-план не публікується; страви з нього розібрані в seed-дані
 та фікстури).
