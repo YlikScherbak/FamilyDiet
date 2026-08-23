@@ -6,6 +6,8 @@ import interactionPlugin from '@fullcalendar/interaction'
 import ukLocale from '@fullcalendar/core/locales/uk'
 import { Chart } from 'chart.js/auto'
 import annotationPlugin from 'chartjs-plugin-annotation'
+import 'chartjs-adapter-date-fns'
+import { uk } from 'date-fns/locale'
 import { api, HEALTH_EVENT_TYPES, healthType } from '../api'
 import { useAppStore } from '../stores/app'
 
@@ -161,13 +163,60 @@ function applyPreset(days) {
 }
 applyPreset(30)
 
+const inRange = (e) => (!range.from || e.date >= range.from) && (!range.to || e.date <= range.to)
+
 const pressureEvents = computed(() =>
-  events.value.filter(
-    (e) =>
-      e.type === 'pressure' &&
-      (!range.from || e.date >= range.from) &&
-      (!range.to || e.date <= range.to),
-  ),
+  events.value.filter((e) => e.type === 'pressure' && inRange(e)),
+)
+
+// --- Накладені типи подій і їх налаштування (зберігаються в БД) -----------------
+
+const OVERLAY_TYPES = HEALTH_EVENT_TYPES.filter((t) => t.value !== 'pressure')
+const defaultStyle = (t) => (t.severity ? 'point' : 'marker')
+
+const showCfg = ref(false)
+const chartCfg = reactive({ enabled: [], types: {} })
+for (const t of OVERLAY_TYPES) chartCfg.types[t.value] = { color: t.color, style: defaultStyle(t) }
+
+let cfgLoaded = false
+async function loadChartCfg() {
+  try {
+    const saved = await api.get('/settings/health_chart')
+    for (const t of OVERLAY_TYPES) {
+      chartCfg.types[t.value] = {
+        color: saved.types?.[t.value]?.color ?? t.color,
+        style: saved.types?.[t.value]?.style ?? defaultStyle(t),
+      }
+    }
+    chartCfg.enabled = Array.isArray(saved.enabled) ? saved.enabled : []
+  } finally {
+    cfgLoaded = true
+  }
+}
+
+let saveTimer = null
+function persistChartCfg() {
+  if (!cfgLoaded) return
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    api
+      .put('/settings/health_chart', { enabled: chartCfg.enabled, types: chartCfg.types })
+      .catch(() => {})
+  }, 400)
+}
+
+function toggleType(type) {
+  const i = chartCfg.enabled.indexOf(type)
+  if (i === -1) chartCfg.enabled.push(type)
+  else chartCfg.enabled.splice(i, 1)
+}
+
+const overlayEvents = computed(() =>
+  events.value.filter((e) => chartCfg.enabled.includes(e.type) && inRange(e)),
+)
+
+const hasChartData = computed(
+  () => pressureEvents.value.length > 0 || overlayEvents.value.length > 0,
 )
 
 const pressureCanvas = ref(null)
@@ -175,20 +224,120 @@ const pulseCanvas = ref(null)
 let pressureChart = null
 let pulseChart = null
 
-const chartLabel = (e) =>
-  `${e.date.slice(8, 10)}.${e.date.slice(5, 7)}${e.time ? ' ' + e.time : ''}`
+// Подія без часу ставиться на полудень (для точок) або розтягується смугою на день (для маркерів)
+const eventMoment = (e) => new Date(`${e.date}T${e.time ?? '12:00'}:00`)
 
-function baseOptions(annotations) {
+function baseOptions(annotations, withSeverityAxis) {
+  const scales = {
+    x: {
+      type: 'time',
+      adapters: { date: { locale: uk } },
+      time: { tooltipFormat: 'dd.MM HH:mm', displayFormats: { day: 'dd.MM', hour: 'dd.MM HH:mm' } },
+      ticks: { maxRotation: 60, autoSkip: true, maxTicksLimit: 12 },
+    },
+    // Явно, інакше датасети без yAxisID чіпляються до першої знайденої осі (severity)
+    y: { position: 'left' },
+  }
+  if (withSeverityAxis) {
+    scales.severity = {
+      position: 'right',
+      min: 0,
+      max: 5,
+      grid: { drawOnChartArea: false },
+      title: { display: true, text: 'Тяжкість, 1–5' },
+    }
+  }
+
   return {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
+    interaction: { mode: 'nearest', intersect: false },
     plugins: {
       legend: { labels: { usePointStyle: true, boxHeight: 6 } },
       annotation: { annotations },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const base = `${ctx.dataset.label}: ${ctx.parsed.y}`
+            if (ctx.dataset.yAxisID === 'severity') {
+              return `${base}/5${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
+            }
+            return base
+          },
+        },
+      },
     },
-    scales: { x: { ticks: { maxRotation: 60, autoSkip: true } } },
+    scales,
   }
+}
+
+/** Датасети тяжкості (точка/стовпчик/лінія) для увімкнених типів. Події без тяжкості стають маркерами. */
+function overlayDatasets() {
+  const datasets = []
+  for (const type of chartCfg.enabled) {
+    const cfg = chartCfg.types[type]
+    const t = healthType(type)
+    if (!cfg || cfg.style === 'marker') continue
+    const points = overlayEvents.value
+      .filter((e) => e.type === type && e.payload.severity != null)
+      .map((e) => ({ x: eventMoment(e), y: e.payload.severity, note: e.note }))
+    if (points.length === 0) continue
+    datasets.push({
+      type: cfg.style === 'bar' ? 'bar' : cfg.style === 'line' ? 'line' : 'scatter',
+      label: `${t.icon} ${t.label}`,
+      data: points,
+      yAxisID: 'severity',
+      borderColor: cfg.color,
+      backgroundColor: cfg.style === 'bar' ? cfg.color + '99' : cfg.color,
+      pointStyle: 'rectRot',
+      pointRadius: 6,
+      barThickness: 10,
+      tension: 0.25,
+      spanGaps: true,
+    })
+  }
+
+  return datasets
+}
+
+/** Маркери: вертикальна пунктирна лінія (є час) або смуга на весь день (часу немає). */
+function overlayAnnotations() {
+  const annotations = {}
+  let i = 0
+  for (const e of overlayEvents.value) {
+    const cfg = chartCfg.types[e.type]
+    const t = healthType(e.type)
+    const asMarker = !cfg || cfg.style === 'marker' || e.payload.severity == null
+    if (!asMarker) continue
+    const label = {
+      display: true,
+      content: `${t.icon}${e.payload.severity ? ` ${e.payload.severity}/5` : ''}`,
+      position: 'end',
+      backgroundColor: cfg.color,
+      font: { size: 10 },
+      padding: 3,
+    }
+    annotations['ev' + i++] = e.time
+      ? {
+          type: 'line',
+          xMin: eventMoment(e),
+          xMax: eventMoment(e),
+          borderColor: cfg.color,
+          borderWidth: 1.5,
+          borderDash: [4, 4],
+          label,
+        }
+      : {
+          type: 'box',
+          xMin: new Date(`${e.date}T00:00:00`),
+          xMax: new Date(`${e.date}T23:59:59`),
+          backgroundColor: cfg.color + '22',
+          borderWidth: 0,
+          label,
+        }
+  }
+
+  return annotations
 }
 
 const normLine = (value, label, color) => ({
@@ -209,60 +358,75 @@ const normLine = (value, label, color) => ({
 
 function renderCharts() {
   const data = pressureEvents.value
-  const labels = data.map(chartLabel)
 
   pressureChart?.destroy()
   pulseChart?.destroy()
   pressureChart = null
   pulseChart = null
-  if (data.length === 0 || !pressureCanvas.value || !pulseCanvas.value) return
+  if (!pressureCanvas.value) return
+  const overlays = overlayDatasets()
+  if (data.length === 0 && overlays.length === 0 && overlayEvents.value.length === 0) return
 
   pressureChart = new Chart(pressureCanvas.value, {
     type: 'line',
     data: {
-      labels,
       datasets: [
         {
           label: 'Систолічний (САТ)',
-          data: data.map((e) => e.payload.systolic),
+          data: data.map((e) => ({ x: eventMoment(e), y: e.payload.systolic })),
+          yAxisID: 'y',
           borderColor: '#b91c1c',
           backgroundColor: '#b91c1c',
           tension: 0.25,
         },
         {
           label: 'Діастолічний (ДАТ)',
-          data: data.map((e) => e.payload.diastolic),
+          data: data.map((e) => ({ x: eventMoment(e), y: e.payload.diastolic })),
+          yAxisID: 'y',
           borderColor: '#1d4ed8',
           backgroundColor: '#1d4ed8',
           tension: 0.25,
         },
+        ...overlays,
       ],
     },
-    options: baseOptions({
-      sysNorm: normLine(135, 'норма САТ 135', '#b91c1c'),
-      diaNorm: normLine(85, 'норма ДАТ 85', '#1d4ed8'),
-    }),
+    options: baseOptions(
+      {
+        sysNorm: normLine(135, 'норма САТ 135', '#b91c1c'),
+        diaNorm: normLine(85, 'норма ДАТ 85', '#1d4ed8'),
+        ...overlayAnnotations(),
+      },
+      overlays.length > 0,
+    ),
   })
 
+  if (data.length === 0 || !pulseCanvas.value) return
   pulseChart = new Chart(pulseCanvas.value, {
     type: 'line',
     data: {
-      labels,
       datasets: [
         {
           label: 'Пульс, уд./хв',
-          data: data.map((e) => e.payload.pulse),
+          data: data.map((e) => ({ x: eventMoment(e), y: e.payload.pulse })),
           borderColor: '#2f6b4f',
           backgroundColor: '#2f6b4f',
           tension: 0.25,
         },
       ],
     },
-    options: baseOptions({}),
+    options: baseOptions(overlayAnnotations(), false),
   })
 }
 
-watch(pressureEvents, () => nextTick(renderCharts))
+watch([pressureEvents, overlayEvents], () => nextTick(renderCharts))
+watch(
+  chartCfg,
+  () => {
+    persistChartCfg()
+    nextTick(renderCharts)
+  },
+  { deep: true },
+)
 onBeforeUnmount(() => {
   pressureChart?.destroy()
   pulseChart?.destroy()
@@ -271,7 +435,7 @@ onBeforeUnmount(() => {
 watch(memberId, load)
 
 onMounted(async () => {
-  await app.loadMembers()
+  await Promise.all([app.loadMembers(), loadChartCfg()])
   memberId.value = app.members[0]?.id ?? null
 })
 </script>
@@ -313,12 +477,49 @@ onMounted(async () => {
         <input v-model="range.to" type="date" @change="range.preset = -1" />
       </div>
 
-      <template v-if="pressureEvents.length">
-        <div style="height: 300px"><canvas ref="pressureCanvas"></canvas></div>
-        <div style="height: 200px; margin-top: 12px"><canvas ref="pulseCanvas"></canvas></div>
+      <div class="toolbar" style="margin-bottom: 8px">
+        <span class="muted">Накласти на графік:</span>
+        <button
+          v-for="t in OVERLAY_TYPES"
+          :key="t.value"
+          class="small"
+          :class="{ primary: chartCfg.enabled.includes(t.value) }"
+          @click="toggleType(t.value)"
+        >
+          {{ t.icon }} {{ t.label }}
+        </button>
+        <button class="small" style="margin-left: auto" @click="showCfg = !showCfg">
+          ⚙ Вигляд
+        </button>
+      </div>
+
+      <div v-if="showCfg" class="cfg-panel">
+        <div v-for="t in OVERLAY_TYPES" :key="t.value" class="cfg-row">
+          <span class="cfg-name">{{ t.icon }} {{ t.label }}</span>
+          <input v-model="chartCfg.types[t.value].color" type="color" />
+          <select v-model="chartCfg.types[t.value].style" :disabled="!t.severity">
+            <option value="marker">маркер</option>
+            <template v-if="t.severity">
+              <option value="point">точка</option>
+              <option value="bar">стовпчик</option>
+              <option value="line">лінія</option>
+            </template>
+          </select>
+        </div>
+        <p class="muted" style="margin: 6px 0 0">
+          Події без числового значення завжди відображаються маркером (лінія на моменті часу або
+          смуга на день). Зберігається автоматично.
+        </p>
+      </div>
+
+      <template v-if="hasChartData">
+        <div style="height: 320px"><canvas ref="pressureCanvas"></canvas></div>
+        <div v-if="pressureEvents.length" style="height: 200px; margin-top: 12px">
+          <canvas ref="pulseCanvas"></canvas>
+        </div>
       </template>
       <p v-else class="muted" style="margin: 8px 0 0">
-        Немає замірів тиску за обраний період. Додайте подію «Тиск і пульс» у календарі.
+        Немає даних за обраний період. Додайте замір тиску або ввімкніть типи подій вище.
       </p>
     </div>
 
@@ -408,5 +609,28 @@ onMounted(async () => {
   width: 520px;
   max-width: 100%;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+.cfg-panel {
+  border: 1px solid var(--border, #e3e6ea);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.cfg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.cfg-name {
+  width: 190px;
+  font-size: 13.5px;
+}
+.cfg-row input[type='color'] {
+  width: 34px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border, #e3e6ea);
+  border-radius: 4px;
 }
 </style>
