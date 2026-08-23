@@ -15,8 +15,15 @@ const LIMIT = 200
 const items = computed(() => store.search(search.value, { category: category.value, limit: LIMIT }))
 
 const blank = () => ({
-  id: null, name: '', category: 'other', unit: 'g',
-  kcalPer100: 0, proteinPer100: 0, fatPer100: 0, carbsPer100: 0, pieceWeightGrams: null,
+  id: null,
+  name: '',
+  category: 'other',
+  unit: 'g',
+  kcalPer100: 0,
+  proteinPer100: 0,
+  fatPer100: 0,
+  carbsPer100: 0,
+  pieceWeightGrams: null,
 })
 const form = reactive(blank())
 
@@ -66,15 +73,23 @@ onMounted(() => store.loadAll())
   <div>
     <h1>Інгредієнти</h1>
     <div class="toolbar">
-      <input v-model="search" placeholder="Пошук (укр або англ, слова в будь-якому порядку)..." style="width: 320px" />
+      <input
+        v-model="search"
+        placeholder="Пошук (укр або англ, слова в будь-якому порядку)..."
+        style="width: 320px"
+      />
       <select v-model="category">
         <option value="">Всі категорії</option>
-        <option v-for="c in INGREDIENT_CATEGORIES" :key="c.value" :value="c.value">{{ c.label }}</option>
+        <option v-for="c in INGREDIENT_CATEGORIES" :key="c.value" :value="c.value">
+          {{ c.label }}
+        </option>
       </select>
       <span class="muted">
         <template v-if="!store.loaded">завантаження довідника...</template>
         <template v-else>
-          {{ items.length }} шт.<template v-if="items.length >= LIMIT"> (перші {{ LIMIT }} з {{ store.items.length }} — звузьте пошук)</template>
+          {{ items.length }} шт.<template v-if="items.length >= LIMIT">
+            (перші {{ LIMIT }} з {{ store.items.length }} — звузьте пошук)</template
+          >
         </template>
       </span>
       <span class="spacer" />
@@ -84,8 +99,15 @@ onMounted(() => store.loadAll())
     <table class="data">
       <thead>
         <tr>
-          <th>Назва</th><th>Категорія</th><th>Од.</th>
-          <th>Ккал/100</th><th>Б</th><th>Ж</th><th>В</th><th>Вага 1 шт</th><th></th>
+          <th>Назва</th>
+          <th>Категорія</th>
+          <th>Од.</th>
+          <th>Ккал/100</th>
+          <th>Б</th>
+          <th>Ж</th>
+          <th>В</th>
+          <th>Вага 1 шт</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -94,7 +116,9 @@ onMounted(() => store.loadAll())
             {{ item.name }}
             <div v-if="item.nameEn" class="muted" style="font-size: 11.5px">{{ item.nameEn }}</div>
           </td>
-          <td><span class="badge">{{ categoryLabel(item.category) }}</span></td>
+          <td>
+            <span class="badge">{{ categoryLabel(item.category) }}</span>
+          </td>
           <td>{{ unitLabel(item.unit) }}</td>
           <td>{{ item.kcalPer100 }}</td>
           <td>{{ item.proteinPer100 }}</td>
@@ -120,7 +144,9 @@ onMounted(() => store.loadAll())
           <div class="field">
             <label>Категорія</label>
             <select v-model="form.category">
-              <option v-for="c in INGREDIENT_CATEGORIES" :key="c.value" :value="c.value">{{ c.label }}</option>
+              <option v-for="c in INGREDIENT_CATEGORIES" :key="c.value" :value="c.value">
+                {{ c.label }}
+              </option>
             </select>
           </div>
           <div class="field">
@@ -145,7 +171,7 @@ onMounted(() => store.loadAll())
             <label>Вуглеводи на 100 г</label>
             <input v-model.number="form.carbsPer100" type="number" min="0" step="0.1" />
           </div>
-          <div class="field" v-if="form.unit === 'pcs'">
+          <div v-if="form.unit === 'pcs'" class="field">
             <label>Вага 1 шт, г</label>
             <input v-model.number="form.pieceWeightGrams" type="number" min="0" step="1" />
           </div>

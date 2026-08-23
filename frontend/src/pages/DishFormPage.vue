@@ -148,7 +148,7 @@ onMounted(async () => {
         </div>
         <div class="field" style="justify-content: flex-end">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer">
-            <input type="checkbox" v-model="form.batchCooking" style="width: auto" />
+            <input v-model="form.batchCooking" type="checkbox" style="width: auto" />
             Підходить для заготівлі (batch cooking)
           </label>
         </div>
@@ -165,15 +165,15 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px">
+    <div
+      style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px"
+    >
       <div v-for="member in app.members" :key="member.id" class="card">
         <div class="toolbar" style="margin-bottom: 10px">
           <strong>Порція: {{ member.name }}</strong>
           <span class="badge">
-            {{ nutritionFor(member.id).kcal }} ккал ·
-            Б {{ nutritionFor(member.id).protein }} ·
-            Ж {{ nutritionFor(member.id).fat }} ·
-            В {{ nutritionFor(member.id).carbs }}
+            {{ nutritionFor(member.id).kcal }} ккал · Б {{ nutritionFor(member.id).protein }} · Ж
+            {{ nutritionFor(member.id).fat }} · В {{ nutritionFor(member.id).carbs }}
           </span>
           <span class="spacer" />
           <button
@@ -188,15 +188,29 @@ onMounted(async () => {
 
         <table class="data">
           <thead>
-            <tr><th>Інгредієнт</th><th style="width: 140px">Кількість</th><th style="width: 40px"></th></tr>
+            <tr>
+              <th>Інгредієнт</th>
+              <th style="width: 140px">Кількість</th>
+              <th style="width: 40px"></th>
+            </tr>
           </thead>
           <tbody>
             <tr v-for="(row, index) in form.portions[member.id] ?? []" :key="index">
-              <td style="font-size: 13.5px">{{ ingredientCache[row.ingredientId]?.name ?? '—' }}</td>
+              <td style="font-size: 13.5px">
+                {{ ingredientCache[row.ingredientId]?.name ?? '—' }}
+              </td>
               <td>
                 <div style="display: flex; align-items: center; gap: 6px">
-                  <input v-model.number="row.amount" type="number" min="0" step="1" style="width: 80px" />
-                  <span class="muted">{{ unitLabel(ingredientCache[row.ingredientId]?.unit) }}</span>
+                  <input
+                    v-model.number="row.amount"
+                    type="number"
+                    min="0"
+                    step="1"
+                    style="width: 80px"
+                  />
+                  <span class="muted">{{
+                    unitLabel(ingredientCache[row.ingredientId]?.unit)
+                  }}</span>
                 </div>
               </td>
               <td><button class="small danger" @click="removeRow(member.id, index)">✕</button></td>

@@ -7,8 +7,9 @@ async function http(method, path, body) {
   if (res.status === 204) return null
   const data = await res.json().catch(() => null)
   if (!res.ok) {
-    const message = data?.error
-      || (data?.errors ? Object.values(data.errors).join('; ') : `Помилка ${res.status}`)
+    const message =
+      data?.error ||
+      (data?.errors ? Object.values(data.errors).join('; ') : `Помилка ${res.status}`)
     throw new Error(message)
   }
   return data

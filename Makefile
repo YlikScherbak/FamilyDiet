@@ -47,6 +47,10 @@ cs: ## Поправити код-стайл (php-cs-fixer)
 cs-check: ## Перевірити код-стайл без змін
 	$(PHP) vendor/bin/php-cs-fixer fix --dry-run --diff
 
+lint: ## ESLint + Prettier-перевірка фронтенду
+	docker compose exec node npx eslint src
+	docker compose exec node npx prettier --check src
+
 test: ## Тести PHPUnit (готує тестову БД familydiet_test)
 	$(PHP) php bin/console doctrine:database:create --env=test --if-not-exists
 	$(PHP) php bin/console doctrine:migrations:migrate --env=test --no-interaction

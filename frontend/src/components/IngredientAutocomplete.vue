@@ -1,9 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { unitLabel } from '../api'
 import { useIngredientsStore } from '../stores/ingredients'
 
-const props = defineProps({
+defineProps({
   placeholder: { type: String, default: 'Пошук продукту...' },
 })
 const emit = defineEmits(['select'])
@@ -13,7 +12,7 @@ const query = ref('')
 const open = ref(false)
 
 const results = computed(() =>
-  query.value.trim().length >= 2 ? store.search(query.value, { limit: 20 }) : []
+  query.value.trim().length >= 2 ? store.search(query.value, { limit: 20 }) : [],
 )
 
 function pick(item) {
@@ -53,8 +52,14 @@ onMounted(() => store.loadAll())
 </template>
 
 <style scoped>
-.autocomplete { position: relative; flex: 1; min-width: 220px; }
-.autocomplete input { width: 100%; }
+.autocomplete {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+.autocomplete input {
+  width: 100%;
+}
 .dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -76,7 +81,14 @@ onMounted(() => store.loadAll())
   gap: 12px;
   font-size: 13.5px;
 }
-.option:hover { background: var(--primary-soft); }
-.option .meta { white-space: nowrap; }
-.option .en { display: block; font-size: 11.5px; }
+.option:hover {
+  background: var(--primary-soft);
+}
+.option .meta {
+  white-space: nowrap;
+}
+.option .en {
+  display: block;
+  font-size: 11.5px;
+}
 </style>

@@ -144,7 +144,9 @@ function discardAndClose() {
 }
 
 const entryName = (e) =>
-  e.type === 'dish' ? e.dish.name : `${e.ingredient.name} — ${e.amount} ${unitLabel(e.ingredient.unit)}`
+  e.type === 'dish'
+    ? e.dish.name
+    : `${e.ingredient.name} — ${e.amount} ${unitLabel(e.ingredient.unit)}`
 
 onMounted(load)
 </script>
@@ -153,7 +155,10 @@ onMounted(load)
   <div class="modal-backdrop" @click.self="tryClose">
     <div class="modal editor">
       <div class="editor-head">
-        <h2>{{ member.name }} · {{ date }} <span v-if="dirty" class="dirty-mark" title="Є незбережені зміни">●</span></h2>
+        <h2>
+          {{ member.name }} · {{ date }}
+          <span v-if="dirty" class="dirty-mark" title="Є незбережені зміни">●</span>
+        </h2>
         <div style="display: flex; gap: 8px">
           <button class="primary" :disabled="saving || !dirty" @click="save()">Зберегти</button>
           <button @click="tryClose">Закрити</button>
@@ -179,7 +184,9 @@ onMounted(load)
 
             <div v-for="item in bySlot(slot.value)" :key="item.key" class="item">
               <span class="item-name" :title="entryName(item)">{{ entryName(item) }}</span>
-              <span class="muted item-kcal" v-if="item.nutrition">{{ Math.round(item.nutrition.kcal) }}</span>
+              <span v-if="item.nutrition" class="muted item-kcal">{{
+                Math.round(item.nutrition.kcal)
+              }}</span>
               <button class="small danger" @click="removeItem(item)">✕</button>
             </div>
 
@@ -187,18 +194,20 @@ onMounted(load)
               <span class="item-name">{{ pending[slot.value].ingredient.name }}</span>
               <input
                 v-model.number="pending[slot.value].amount"
-                type="number" min="1" step="1"
+                type="number"
+                min="1"
+                step="1"
                 :placeholder="unitLabel(pending[slot.value].ingredient.unit)"
                 style="width: 90px"
-                @keydown.enter="addPending(slot.value)"
                 autofocus
+                @keydown.enter="addPending(slot.value)"
               />
               <span class="muted">{{ unitLabel(pending[slot.value].ingredient.unit) }}</span>
               <button class="small primary" @click="addPending(slot.value)">OK</button>
               <button class="small" @click="delete pending[slot.value]">✕</button>
             </div>
 
-            <div class="add-row" v-else>
+            <div v-else class="add-row">
               <IngredientAutocomplete @select="(i) => pickProduct(slot.value, i)" />
               <button class="small" @click="dishPickerSlot = slot.value">+ Страва</button>
             </div>
@@ -211,12 +220,14 @@ onMounted(load)
             <div class="target-line">
               <span>{{ t.label }}</span>
               <span>
-                <strong :class="{ over: t.target && dayTotal[t.key] > t.target }">{{ Math.round(dayTotal[t.key]) }}</strong>
-                <span class="muted" v-if="t.target"> / {{ t.target }} {{ t.unit }}</span>
-                <span class="muted" v-else> {{ t.unit }}</span>
+                <strong :class="{ over: t.target && dayTotal[t.key] > t.target }">{{
+                  Math.round(dayTotal[t.key])
+                }}</strong>
+                <span v-if="t.target" class="muted"> / {{ t.target }} {{ t.unit }}</span>
+                <span v-else class="muted"> {{ t.unit }}</span>
               </span>
             </div>
-            <div class="bar" v-if="t.target">
+            <div v-if="t.target" class="bar">
               <div
                 class="bar-fill"
                 :class="{ over: dayTotal[t.key] > t.target }"
@@ -241,10 +252,22 @@ onMounted(load)
 </template>
 
 <style scoped>
-.editor { max-width: 1080px; }
-.editor-head { display: flex; justify-content: space-between; align-items: center; }
-.editor-head h2 { margin: 0; }
-.dirty-mark { color: var(--primary); font-size: 14px; vertical-align: middle; }
+.editor {
+  max-width: 1080px;
+}
+.editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.editor-head h2 {
+  margin: 0;
+}
+.dirty-mark {
+  color: var(--primary);
+  font-size: 14px;
+  vertical-align: middle;
+}
 .confirm-bar {
   display: flex;
   align-items: center;
@@ -256,10 +279,24 @@ onMounted(load)
   margin-top: 12px;
   font-size: 13.5px;
 }
-.editor-body { display: grid; grid-template-columns: 1fr 280px; gap: 16px; margin-top: 16px; }
-.slots { display: flex; flex-direction: column; gap: 12px; }
-.slot-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
-.item, .pending {
+.editor-body {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 16px;
+  margin-top: 16px;
+}
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.slot-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.item,
+.pending {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -267,18 +304,67 @@ onMounted(load)
   border-bottom: 1px solid var(--border);
   font-size: 13.5px;
 }
-.item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.item-kcal { min-width: 40px; text-align: right; }
-.item button { visibility: hidden; }
-.item:hover button { visibility: visible; }
-.add-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
-.totals { align-self: start; position: sticky; top: 0; }
-.target { margin-top: 12px; }
-.target-line { display: flex; justify-content: space-between; font-size: 13.5px; margin-bottom: 4px; }
-.target .over { color: var(--danger); }
-.bar { height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; }
-.bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.2s; }
-.bar-fill.over { background: var(--danger); }
-.hint { font-size: 12.5px; margin-top: 16px; }
-@media (max-width: 900px) { .editor-body { grid-template-columns: 1fr } }
+.item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-kcal {
+  min-width: 40px;
+  text-align: right;
+}
+.item button {
+  visibility: hidden;
+}
+.item:hover button {
+  visibility: visible;
+}
+.add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+.totals {
+  align-self: start;
+  position: sticky;
+  top: 0;
+}
+.target {
+  margin-top: 12px;
+}
+.target-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.target .over {
+  color: var(--danger);
+}
+.bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+  transition: width 0.2s;
+}
+.bar-fill.over {
+  background: var(--danger);
+}
+.hint {
+  font-size: 12.5px;
+  margin-top: 16px;
+}
+@media (max-width: 900px) {
+  .editor-body {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

@@ -27,7 +27,9 @@ export const useIngredientsStore = defineStore('ingredients', {
       if (words.length) {
         result = result.filter((i) => words.every((w) => i._haystack.includes(w)))
         const first = words[0]
-        result = [...result].sort((a, b) => rank(a, first) - rank(b, first) || a.name.length - b.name.length)
+        result = [...result].sort(
+          (a, b) => rank(a, first) - rank(b, first) || a.name.length - b.name.length,
+        )
       }
       return result.slice(0, limit)
     },

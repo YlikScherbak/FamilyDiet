@@ -43,7 +43,9 @@ onMounted(load)
           >
             <td class="muted" style="width: 50px">{{ dish.code ?? '' }}</td>
             <td>{{ dish.name }}</td>
-            <td style="width: 110px"><span class="badge">{{ slotLabel(dish.category) }}</span></td>
+            <td style="width: 110px">
+              <span class="badge">{{ slotLabel(dish.category) }}</span>
+            </td>
           </tr>
           <tr v-if="items.length === 0">
             <td class="muted">Нічого не знайдено</td>

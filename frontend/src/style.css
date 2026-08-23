@@ -10,7 +10,9 @@
   --radius: 10px;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
@@ -20,7 +22,10 @@ body {
   font-size: 15px;
 }
 
-a { color: var(--primary); text-decoration: none; }
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
 
 .topbar {
   background: var(--card);
@@ -35,9 +40,16 @@ a { color: var(--primary); text-decoration: none; }
   z-index: 10;
 }
 
-.topbar .brand { font-weight: 700; font-size: 17px; color: var(--primary); }
+.topbar .brand {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--primary);
+}
 
-.topbar nav { display: flex; gap: 4px; }
+.topbar nav {
+  display: flex;
+  gap: 4px;
+}
 
 .topbar nav a {
   padding: 8px 14px;
@@ -45,11 +57,22 @@ a { color: var(--primary); text-decoration: none; }
   color: var(--text);
 }
 
-.topbar nav a.router-link-active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.topbar nav a.router-link-active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
 
-.page { max-width: 1280px; margin: 0 auto; padding: 24px; }
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+}
 
-.page h1 { font-size: 22px; margin: 0 0 16px; }
+.page h1 {
+  font-size: 22px;
+  margin: 0 0 16px;
+}
 
 .card {
   background: var(--card);
@@ -58,10 +81,19 @@ a { color: var(--primary); text-decoration: none; }
   padding: 16px;
 }
 
-.toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-.toolbar .spacer { flex: 1; }
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.toolbar .spacer {
+  flex: 1;
+}
 
-button, .btn {
+button,
+.btn {
   font: inherit;
   border: 1px solid var(--border);
   background: var(--card);
@@ -71,7 +103,9 @@ button, .btn {
   color: var(--text);
 }
 
-button:hover { border-color: var(--primary); }
+button:hover {
+  border-color: var(--primary);
+}
 
 button.primary {
   background: var(--primary);
@@ -79,11 +113,21 @@ button.primary {
   color: #fff;
 }
 
-button.danger { color: var(--danger); }
-button.small { padding: 3px 8px; font-size: 13px; }
-button:disabled { opacity: 0.5; cursor: default; }
+button.danger {
+  color: var(--danger);
+}
+button.small {
+  padding: 3px 8px;
+  font-size: 13px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
-input, select, textarea {
+input,
+select,
+textarea {
   font: inherit;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -92,7 +136,12 @@ input, select, textarea {
   color: var(--text);
 }
 
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--primary-soft);
+  border-color: var(--primary);
+}
 
 table.data {
   width: 100%;
@@ -103,17 +152,30 @@ table.data {
   overflow: hidden;
 }
 
-table.data th, table.data td {
+table.data th,
+table.data td {
   padding: 9px 12px;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
 
-table.data th { background: #fafbfc; font-weight: 600; font-size: 13px; color: var(--muted); }
-table.data tr:last-child td { border-bottom: none; }
+table.data th {
+  background: #fafbfc;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--muted);
+}
+table.data tr:last-child td {
+  border-bottom: none;
+}
 
-.muted { color: var(--muted); }
-.error { color: var(--danger); margin: 8px 0; }
+.muted {
+  color: var(--muted);
+}
+.error {
+  color: var(--danger);
+  margin: 8px 0;
+}
 .badge {
   display: inline-block;
   background: var(--primary-soft);
@@ -145,8 +207,27 @@ table.data tr:last-child td { border-bottom: none; }
   padding: 20px;
 }
 
-.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.form-grid .full { grid-column: 1 / -1; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field label { font-size: 13px; color: var(--muted); font-weight: 600; }
-.actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.form-grid .full {
+  grid-column: 1 / -1;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

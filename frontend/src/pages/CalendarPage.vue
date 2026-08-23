@@ -28,8 +28,11 @@ const days = computed(() =>
   Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart.value)
     d.setDate(d.getDate() + i)
-    return { date: fmt(d), label: `${DAY_LABELS[i]} ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}` }
-  })
+    return {
+      date: fmt(d),
+      label: `${DAY_LABELS[i]} ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`,
+    }
+  }),
 )
 
 const today = fmt(new Date())
@@ -59,10 +62,14 @@ const summaryFor = (date, memberId) =>
   summaries.value.find((s) => s.date === date && s.familyMemberId === memberId)
 
 const entryTitle = (e) =>
-  e.type === 'dish' ? e.dish.name : `${e.ingredient.name} — ${e.amount} ${unitLabel(e.ingredient.unit)}`
+  e.type === 'dish'
+    ? e.dish.name
+    : `${e.ingredient.name} — ${e.amount} ${unitLabel(e.ingredient.unit)}`
 
 const entryShort = (e) =>
-  e.type === 'dish' ? e.dish.name : `${e.ingredient.name} ${e.amount}${unitLabel(e.ingredient.unit)}`
+  e.type === 'dish'
+    ? e.dish.name
+    : `${e.ingredient.name} ${e.amount}${unitLabel(e.ingredient.unit)}`
 
 async function removeEntry(entry) {
   await api.del(`/meal-plan/entries/${entry.id}`)
@@ -118,7 +125,9 @@ onMounted(async () => {
         <tbody>
           <template v-for="slot in MEAL_SLOTS" :key="slot.value">
             <tr v-for="(member, mi) in app.members" :key="member.id">
-              <th v-if="mi === 0" :rowspan="app.members.length" class="slot-label">{{ slot.label }}</th>
+              <th v-if="mi === 0" :rowspan="app.members.length" class="slot-label">
+                {{ slot.label }}
+              </th>
               <td class="muted member-label">{{ member.name }}</td>
               <td
                 v-for="day in days"
@@ -133,8 +142,12 @@ onMounted(async () => {
                   class="entry"
                   :title="entryTitle(entry)"
                 >
-                  <span class="entry-name" @click="openEditor(day.date, member)">{{ entryShort(entry) }}</span>
-                  <span class="muted" v-if="entry.nutrition"> {{ Math.round(entry.nutrition.kcal) }}</span>
+                  <span class="entry-name" @click="openEditor(day.date, member)">{{
+                    entryShort(entry)
+                  }}</span>
+                  <span v-if="entry.nutrition" class="muted">
+                    {{ Math.round(entry.nutrition.kcal) }}</span
+                  >
                   <button class="small danger" @click.stop="removeEntry(entry)">✕</button>
                 </div>
                 <button class="small add" @click="openEditor(day.date, member)">✎</button>
@@ -142,7 +155,13 @@ onMounted(async () => {
             </tr>
           </template>
           <tr v-for="member in app.members" :key="'sum' + member.id" class="summary-row">
-            <th v-if="member.id === app.members[0]?.id" :rowspan="app.members.length" class="slot-label">Разом</th>
+            <th
+              v-if="member.id === app.members[0]?.id"
+              :rowspan="app.members.length"
+              class="slot-label"
+            >
+              Разом
+            </th>
             <td class="muted member-label">{{ member.name }}</td>
             <td v-for="day in days" :key="day.date" :class="{ today: day.date === today }">
               <template v-if="summaryFor(day.date, member.id)">
@@ -151,9 +170,9 @@ onMounted(async () => {
                 </strong>
                 <span class="muted"> / {{ member.kcalTarget }}</span>
                 <div class="muted macro">
-                  Б {{ Math.round(summaryFor(day.date, member.id).protein) }} ·
-                  Ж {{ Math.round(summaryFor(day.date, member.id).fat) }} ·
-                  В {{ Math.round(summaryFor(day.date, member.id).carbs) }}
+                  Б {{ Math.round(summaryFor(day.date, member.id).protein) }} · Ж
+                  {{ Math.round(summaryFor(day.date, member.id).fat) }} · В
+                  {{ Math.round(summaryFor(day.date, member.id).carbs) }}
                 </div>
               </template>
             </td>
@@ -173,18 +192,59 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.calendar th.today, .calendar td.today { background: #f2f8f4; }
-.calendar .slot-label { vertical-align: top; background: #fafbfc; font-size: 13px; }
-.calendar .member-label { font-size: 12.5px; white-space: nowrap; }
-.calendar .cell { min-width: 130px; vertical-align: top; cursor: pointer; }
-.entry { margin-bottom: 4px; font-size: 13px; line-height: 1.3; }
-.entry-name { color: var(--primary); }
-.entry-name:hover { text-decoration: underline; }
-.entry button { visibility: hidden; margin-left: 2px; padding: 0 4px; border: none; }
-.entry:hover button { visibility: visible; }
-.add { visibility: hidden; border-style: dashed; color: var(--muted); }
-.cell:hover .add { visibility: visible; }
-.summary-row td { font-size: 13px; }
-.summary-row .over { color: var(--danger); }
-.macro { font-size: 11.5px; }
+.calendar th.today,
+.calendar td.today {
+  background: #f2f8f4;
+}
+.calendar .slot-label {
+  vertical-align: top;
+  background: #fafbfc;
+  font-size: 13px;
+}
+.calendar .member-label {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.calendar .cell {
+  min-width: 130px;
+  vertical-align: top;
+  cursor: pointer;
+}
+.entry {
+  margin-bottom: 4px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.entry-name {
+  color: var(--primary);
+}
+.entry-name:hover {
+  text-decoration: underline;
+}
+.entry button {
+  visibility: hidden;
+  margin-left: 2px;
+  padding: 0 4px;
+  border: none;
+}
+.entry:hover button {
+  visibility: visible;
+}
+.add {
+  visibility: hidden;
+  border-style: dashed;
+  color: var(--muted);
+}
+.cell:hover .add {
+  visibility: visible;
+}
+.summary-row td {
+  font-size: 13px;
+}
+.summary-row .over {
+  color: var(--danger);
+}
+.macro {
+  font-size: 11.5px;
+}
 </style>
