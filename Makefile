@@ -41,6 +41,12 @@ usda: ## Імпорт довідника USDA (~7 200 продуктів) + ук
 stan: ## Статичний аналіз PHPStan (level 8)
 	$(PHP) php -d memory_limit=1G vendor/bin/phpstan analyse --no-progress
 
+cs: ## Поправити код-стайл (php-cs-fixer)
+	$(PHP) vendor/bin/php-cs-fixer fix
+
+cs-check: ## Перевірити код-стайл без змін
+	$(PHP) vendor/bin/php-cs-fixer fix --dry-run --diff
+
 test: ## Тести PHPUnit (готує тестову БД familydiet_test)
 	$(PHP) php bin/console doctrine:database:create --env=test --if-not-exists
 	$(PHP) php bin/console doctrine:migrations:migrate --env=test --no-interaction
