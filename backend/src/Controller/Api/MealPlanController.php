@@ -19,6 +19,8 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/meal-plan')]
 class MealPlanController extends AbstractController
 {
+    private const COPY_MAX_DAYS = 31;
+
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly MealPlanEntryRepository $entries,
@@ -223,6 +225,8 @@ class MealPlanController extends AbstractController
 
     /**
      * Копіює всі записи діапазону [sourceFrom, sourceTo] у діапазон, що починається з targetFrom.
+     * Цільовий діапазон заміняється, а не доповнюється — повторне копіювання не плодить дублів.
+     * Опційний familyMemberId обмежує і джерело, і заміну однією людиною.
      */
     #[Route('/copy', methods: ['POST'])]
     public function copy(Request $request): JsonResponse
@@ -241,28 +245,56 @@ class MealPlanController extends AbstractController
             return $this->json(['error' => 'Потрібні коректні sourceFrom, sourceTo, targetFrom'], 422);
         }
 
-        $source = $this->entries->createQueryBuilder('e')
-            ->where('e.date >= :from AND e.date <= :to')
-            ->setParameter('from', $sourceFrom)
-            ->setParameter('to', $sourceTo)
-            ->getQuery()->getResult();
-
-        $copied = 0;
-        foreach ($source as $entry) {
-            /** @var MealPlanEntry $entry */
-            $offsetDays = (int) $sourceFrom->diff($entry->getDate())->format('%a');
-            $copy = (new MealPlanEntry())
-                ->setDate($targetFrom->modify(sprintf('+%d days', $offsetDays)))
-                ->setFamilyMember($entry->getFamilyMember())
-                ->setDish($entry->getDish())
-                ->setIngredient($entry->getIngredient())
-                ->setAmount($entry->getAmount())
-                ->setSlot($entry->getSlot());
-            $this->em->persist($copy);
-            ++$copied;
+        $rangeDays = (int) $sourceFrom->diff($sourceTo)->format('%a');
+        if ($rangeDays + 1 > self::COPY_MAX_DAYS) {
+            return $this->json(['error' => sprintf('Діапазон копіювання — не більше %d дн.', self::COPY_MAX_DAYS)], 422);
         }
 
-        $this->em->flush();
+        $member = null;
+        if (!empty($data['familyMemberId'])) {
+            $member = $this->members->find((int) $data['familyMemberId']);
+            if ($member === null) {
+                return $this->json(['error' => 'Члена сім\'ї не знайдено'], 422);
+            }
+        }
+
+        $sourceQb = $this->entries->createQueryBuilder('e')
+            ->where('e.date >= :from AND e.date <= :to')
+            ->setParameter('from', $sourceFrom)
+            ->setParameter('to', $sourceTo);
+        if ($member !== null) {
+            $sourceQb->andWhere('e.familyMember = :member')->setParameter('member', $member);
+        }
+        $source = $sourceQb->getQuery()->getResult();
+
+        $targetTo = $targetFrom->modify(sprintf('+%d days', $rangeDays));
+
+        $copied = 0;
+        $this->em->wrapInTransaction(function () use ($source, $sourceFrom, $targetFrom, $targetTo, $member, &$copied): void {
+            $delete = $this->em->createQueryBuilder()
+                ->delete(MealPlanEntry::class, 'e')
+                ->where('e.date >= :from AND e.date <= :to')
+                ->setParameter('from', $targetFrom)
+                ->setParameter('to', $targetTo);
+            if ($member !== null) {
+                $delete->andWhere('e.familyMember = :member')->setParameter('member', $member);
+            }
+            $delete->getQuery()->execute();
+
+            foreach ($source as $entry) {
+                /** @var MealPlanEntry $entry */
+                $offsetDays = (int) $sourceFrom->diff($entry->getDate())->format('%a');
+                $copy = (new MealPlanEntry())
+                    ->setDate($targetFrom->modify(sprintf('+%d days', $offsetDays)))
+                    ->setFamilyMember($entry->getFamilyMember())
+                    ->setDish($entry->getDish())
+                    ->setIngredient($entry->getIngredient())
+                    ->setAmount($entry->getAmount())
+                    ->setSlot($entry->getSlot());
+                $this->em->persist($copy);
+                ++$copied;
+            }
+        });
 
         return $this->json(['copied' => $copied], 201);
     }
