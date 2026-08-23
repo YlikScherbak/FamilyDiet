@@ -9,6 +9,16 @@
 ## Запуск з нуля
 
 ```bash
+make init
+```
+
+Це збере контейнери, встановить залежності, накотить міграції і засіє демо-дані
+(разом з довідником USDA). Інші команди — `make help`.
+
+<details>
+<summary>Без make — ті самі кроки вручну</summary>
+
+```bash
 docker compose up -d --build
 docker compose exec php composer install
 docker compose exec php php bin/console doctrine:migrations:migrate --no-interaction
@@ -16,6 +26,8 @@ docker compose exec php php bin/console doctrine:fixtures:load --no-interaction
 docker compose exec php php bin/console app:import-usda-products
 docker compose exec php php bin/console app:import-ingredient-translations
 ```
+
+</details>
 
 - Застосунок: http://localhost:5173
 - API: http://localhost:8080/api/health
