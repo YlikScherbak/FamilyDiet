@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/ingredients')]
 class IngredientController extends AbstractController
@@ -21,6 +22,7 @@ class IngredientController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly ValidatorInterface $validator,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -103,7 +105,7 @@ class IngredientController extends AbstractController
         )->setParameter('ingredient', $ingredient)->getSingleScalarResult();
 
         if ($usages > 0) {
-            return $this->json(['error' => sprintf('Інгредієнт використовується у стравах (%d разів), спершу приберіть його звідти', $usages)], 409);
+            return $this->json(['error' => $this->translator->trans('error.ingredient.used_in_dishes', ['%count%' => $usages])], 409);
         }
 
         $this->em->remove($ingredient);
@@ -117,13 +119,13 @@ class IngredientController extends AbstractController
         try {
             $data = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'Невалідний JSON'], 400);
+            return $this->json(['error' => $this->translator->trans('error.invalid_json')], 400);
         }
 
         $category = IngredientCategory::tryFrom((string) ($data['category'] ?? ''));
         $unit = Unit::tryFrom((string) ($data['unit'] ?? ''));
         if ($category === null || $unit === null) {
-            return $this->json(['error' => 'Невідома категорія або одиниця виміру'], 422);
+            return $this->json(['error' => $this->translator->trans('error.ingredient.unknown_category_or_unit')], 422);
         }
 
         $ingredient
@@ -137,7 +139,7 @@ class IngredientController extends AbstractController
             ->setPieceWeightGrams(isset($data['pieceWeightGrams']) && $data['pieceWeightGrams'] !== '' ? (float) $data['pieceWeightGrams'] : null);
 
         if ($ingredient->getUnit() === Unit::Pieces && $ingredient->getPieceWeightGrams() === null) {
-            return $this->json(['errors' => ['pieceWeightGrams' => 'Для штучних інгредієнтів вкажіть вагу 1 шт у грамах']], 422);
+            return $this->json(['errors' => ['pieceWeightGrams' => $this->translator->trans('error.ingredient.piece_weight_required')]], 422);
         }
 
         $violations = $this->validator->validate($ingredient);

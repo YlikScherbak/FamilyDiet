@@ -1,0 +1,8 @@
+framework:
+    default_locale: uk
+    enabled_locales: ['uk', 'en']
+    # Локаль відповіді береться із заголовка Accept-Language (шле фронтенд)
+    set_locale_from_accept_language: true
+    translator:
+        default_path: '%kernel.project_dir%/translations'
+        fallbacks: ['uk']

@@ -13,6 +13,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/health-events')]
 class HealthEventController extends AbstractController
@@ -22,6 +23,7 @@ class HealthEventController extends AbstractController
         private readonly HealthEventRepository $events,
         private readonly FamilyMemberRepository $members,
         private readonly HealthEventTypeRegistry $types,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -81,7 +83,7 @@ class HealthEventController extends AbstractController
         try {
             $data = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'Невалідний JSON'], 400);
+            return $this->json(['error' => $this->translator->trans('error.invalid_json')], 400);
         }
 
         $member = $this->members->find((int) ($data['familyMemberId'] ?? 0));
@@ -89,7 +91,7 @@ class HealthEventController extends AbstractController
         $type = (string) ($data['type'] ?? '');
 
         if ($member === null || $date === null || !$this->types->isKnown($type)) {
-            return $this->json(['error' => 'Потрібні коректні familyMemberId, date і type'], 422);
+            return $this->json(['error' => $this->translator->trans('error.health.payload_required')], 422);
         }
 
         $time = null;
@@ -100,7 +102,7 @@ class HealthEventController extends AbstractController
                 ? \DateTimeImmutable::createFromFormat('!H:i', $rawTime)
                 : false;
             if ($parsed === false) {
-                return $this->json(['errors' => ['time' => 'Час у форматі ГГ:ХХ']], 422);
+                return $this->json(['errors' => ['time' => $this->translator->trans('error.health.time_format')]], 422);
             }
             $time = $parsed;
         }

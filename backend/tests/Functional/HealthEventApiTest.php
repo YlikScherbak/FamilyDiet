@@ -114,6 +114,31 @@ final class HealthEventApiTest extends ApiTestCase
         $this->assertStatus(422);
     }
 
+    public function testErrorMessagesFollowAcceptLanguage(): void
+    {
+        $member = $this->createMember('Мова-1');
+        $badPressure = [
+            'familyMemberId' => $member->getId(),
+            'date' => '2026-03-02',
+            'type' => 'pressure',
+            'payload' => ['systolic' => 300, 'diastolic' => 90, 'pulse' => 70],
+        ];
+
+        // Accept-Language: uk — українська (вона ж default; BrowserKit шле власний заголовок, тому явно)
+        $this->request('POST', '/api/health-events', $badPressure, ['HTTP_ACCEPT_LANGUAGE' => 'uk']);
+        $this->assertStatus(422);
+        /** @var array{errors: array{systolic: string}} $uk */
+        $uk = $this->responseJson();
+        self::assertSame('Систолічний тиск має бути в межах 60–260', $uk['errors']['systolic']);
+
+        // з Accept-Language: en — англійська
+        $this->request('POST', '/api/health-events', $badPressure, ['HTTP_ACCEPT_LANGUAGE' => 'en']);
+        $this->assertStatus(422);
+        /** @var array{errors: array{systolic: string}} $en */
+        $en = $this->responseJson();
+        self::assertSame('Systolic pressure must be between 60 and 260', $en['errors']['systolic']);
+    }
+
     public function testRejectsUnknownTypeAndBadTime(): void
     {
         $member = $this->createMember('Подія-2');

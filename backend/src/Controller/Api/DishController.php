@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/dishes')]
 class DishController extends AbstractController
@@ -26,6 +27,7 @@ class DishController extends AbstractController
         private readonly ValidatorInterface $validator,
         private readonly FamilyMemberRepository $members,
         private readonly IngredientRepository $ingredients,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -78,7 +80,7 @@ class DishController extends AbstractController
         )->setParameter('dish', $dish)->getSingleScalarResult();
 
         if ($usages > 0) {
-            return $this->json(['error' => sprintf('Страва запланована в меню (%d разів), спершу приберіть її з календаря', $usages)], 409);
+            return $this->json(['error' => $this->translator->trans('error.dish.planned_in_menu', ['%count%' => $usages])], 409);
         }
 
         $this->em->remove($dish);
@@ -92,12 +94,12 @@ class DishController extends AbstractController
         try {
             $data = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'Невалідний JSON'], 400);
+            return $this->json(['error' => $this->translator->trans('error.invalid_json')], 400);
         }
 
         $category = MealType::tryFrom((string) ($data['category'] ?? ''));
         if ($category === null) {
-            return $this->json(['error' => 'Невідома категорія страви'], 422);
+            return $this->json(['error' => $this->translator->trans('error.dish.unknown_category')], 422);
         }
 
         $code = isset($data['code']) && trim((string) $data['code']) !== '' ? trim((string) $data['code']) : null;
@@ -118,18 +120,18 @@ class DishController extends AbstractController
         foreach ($data['portions'] ?? [] as $portionData) {
             $member = $this->members->find((int) ($portionData['familyMemberId'] ?? 0));
             if ($member === null) {
-                return $this->json(['error' => 'Невідомий член сім\'ї у порції'], 422);
+                return $this->json(['error' => $this->translator->trans('error.dish.unknown_member')], 422);
             }
 
             $portion = (new DishPortion())->setFamilyMember($member);
             foreach ($portionData['ingredients'] ?? [] as $item) {
                 $ingredient = $this->ingredients->find((int) ($item['ingredientId'] ?? 0));
                 if ($ingredient === null) {
-                    return $this->json(['error' => 'Невідомий інгредієнт у порції'], 422);
+                    return $this->json(['error' => $this->translator->trans('error.dish.unknown_ingredient')], 422);
                 }
                 $amount = (float) ($item['amount'] ?? 0);
                 if ($amount <= 0) {
-                    return $this->json(['errors' => ['portions' => 'Кількість інгредієнта має бути більшою за нуль']], 422);
+                    return $this->json(['errors' => ['portions' => $this->translator->trans('error.dish.amount_positive')]], 422);
                 }
                 $portion->addIngredient(
                     (new DishPortionIngredient())->setIngredient($ingredient)->setAmount($amount)
@@ -143,7 +145,7 @@ class DishController extends AbstractController
             $dish->getPortions()->toArray()
         );
         if (count($memberIds) !== count(array_unique($memberIds))) {
-            return $this->json(['error' => 'Для одного члена сім\'ї може бути лише одна порція'], 422);
+            return $this->json(['error' => $this->translator->trans('error.dish.one_portion_per_member')], 422);
         }
 
         $violations = $this->validator->validate($dish);

@@ -11,6 +11,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/settings')]
 class SettingController extends AbstractController
@@ -21,6 +22,7 @@ class SettingController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AppSettingRepository $settings,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -38,11 +40,11 @@ class SettingController extends AbstractController
         try {
             $value = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'Невалідний JSON'], 400);
+            return $this->json(['error' => $this->translator->trans('error.invalid_json')], 400);
         }
 
         if (strlen((string) json_encode($value)) > self::MAX_VALUE_BYTES) {
-            return $this->json(['error' => 'Налаштування завелике'], 422);
+            return $this->json(['error' => $this->translator->trans('error.setting.too_large')], 422);
         }
 
         $setting = $this->settings->find($key) ?? (new AppSetting())->setKey($key);

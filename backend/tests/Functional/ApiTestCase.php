@@ -27,10 +27,13 @@ abstract class ApiTestCase extends WebTestCase
         $this->em = static::getContainer()->get(EntityManagerInterface::class);
     }
 
-    /** @param array<string, mixed> $payload */
-    protected function request(string $method, string $uri, array $payload = []): void
+    /**
+     * @param array<string, mixed>  $payload
+     * @param array<string, string> $server
+     */
+    protected function request(string $method, string $uri, array $payload = [], array $server = []): void
     {
-        $this->client->jsonRequest($method, $uri, $payload);
+        $this->client->jsonRequest($method, $uri, $payload, $server);
     }
 
     /** @return array<mixed> */

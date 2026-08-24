@@ -1,0 +1,40 @@
+# Повідомлення API. Ключі спільні для uk/en; параметри — %num%, %count%, %days%.
+error:
+    invalid_json: 'Невалідний JSON'
+    member_not_found: "Члена сім'ї не знайдено"
+    meal_plan:
+        from_to_required: "Параметри from і to обов'язкові, формат YYYY-MM-DD"
+        day_payload: 'Потрібні коректні date, familyMemberId та entries[]'
+        entry_unknown_slot: 'Запис #%num%: невідомий slot'
+        entry_dish_or_ingredient: 'Запис #%num%: вкажіть або dishId, або ingredientId'
+        entry_dish_not_found: 'Запис #%num%: страву не знайдено'
+        entry_ingredient_amount: 'Запис #%num%: потрібні коректні ingredientId і amount > 0'
+        add_payload: 'Потрібні коректні date, familyMemberId, slot'
+        dish_or_ingredient: 'Вкажіть або dishId, або ingredientId — рівно одне з двох'
+        dish_not_found: 'Страву не знайдено'
+        ingredient_amount: 'Для продукту потрібні коректні ingredientId і amount > 0'
+        copy_payload: 'Потрібні коректні sourceFrom, sourceTo, targetFrom'
+        copy_range: 'Діапазон копіювання — не більше %days% дн.'
+    ingredient:
+        unknown_category_or_unit: 'Невідома категорія або одиниця виміру'
+        piece_weight_required: 'Для штучних інгредієнтів вкажіть вагу 1 шт у грамах'
+        used_in_dishes: 'Інгредієнт використовується у стравах (%count% разів), спершу приберіть його звідти'
+    dish:
+        unknown_category: 'Невідома категорія страви'
+        unknown_member: "Невідомий член сім'ї у порції"
+        unknown_ingredient: 'Невідомий інгредієнт у порції'
+        amount_positive: 'Кількість інгредієнта має бути більшою за нуль'
+        one_portion_per_member: "Для одного члена сім'ї може бути лише одна порція"
+        planned_in_menu: 'Страва запланована в меню (%count% разів), спершу приберіть її з календаря'
+    health:
+        payload_required: 'Потрібні коректні familyMemberId, date і type'
+        time_format: 'Час у форматі ГГ:ХХ'
+        systolic_range: 'Систолічний тиск має бути в межах 60–260'
+        diastolic_range: 'Діастолічний тиск має бути в межах 40–160'
+        systolic_gt_diastolic: 'Систолічний тиск має бути більшим за діастолічний'
+        pulse_range: 'Пульс має бути в межах 30–220'
+        weight_range: 'Вага має бути в межах 20–400 кг'
+        severity_range: 'Тяжкість — від 1 до 5'
+        custom_title_required: 'Для власної події вкажіть назву'
+    setting:
+        too_large: 'Налаштування завелике'

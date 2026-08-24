@@ -15,6 +15,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/meal-plan')]
 class MealPlanController extends AbstractController
@@ -27,6 +28,7 @@ class MealPlanController extends AbstractController
         private readonly FamilyMemberRepository $members,
         private readonly DishRepository $dishes,
         private readonly IngredientRepository $ingredients,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -35,7 +37,7 @@ class MealPlanController extends AbstractController
     {
         [$from, $to] = $this->parseRange($request);
         if ($from === null || $to === null) {
-            return $this->json(['error' => 'Параметри from і to обов\'язкові, формат YYYY-MM-DD'], 400);
+            return $this->json(['error' => $this->translator->trans('error.meal_plan.from_to_required')], 400);
         }
 
         $result = $this->entries->createQueryBuilder('e')
@@ -107,20 +109,20 @@ class MealPlanController extends AbstractController
         try {
             $data = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'Невалідний JSON'], 400);
+            return $this->json(['error' => $this->translator->trans('error.invalid_json')], 400);
         }
 
         $date = $this->parseDate((string) ($data['date'] ?? ''));
         $member = $this->members->find((int) ($data['familyMemberId'] ?? 0));
         if ($date === null || $member === null || !is_array($data['entries'] ?? null)) {
-            return $this->json(['error' => 'Потрібні коректні date, familyMemberId та entries[]'], 422);
+            return $this->json(['error' => $this->translator->trans('error.meal_plan.day_payload')], 422);
         }
 
         $newEntries = [];
         foreach ($data['entries'] as $i => $item) {
             $slot = MealType::tryFrom((string) ($item['slot'] ?? ''));
             if ($slot === null) {
-                return $this->json(['error' => sprintf('Запис #%d: невідомий slot', $i + 1)], 422);
+                return $this->json(['error' => $this->translator->trans('error.meal_plan.entry_unknown_slot', ['%num%' => $i + 1])], 422);
             }
 
             $entry = (new MealPlanEntry())
@@ -131,20 +133,20 @@ class MealPlanController extends AbstractController
             $hasDish = !empty($item['dishId']);
             $hasIngredient = !empty($item['ingredientId']);
             if ($hasDish === $hasIngredient) {
-                return $this->json(['error' => sprintf('Запис #%d: вкажіть або dishId, або ingredientId', $i + 1)], 422);
+                return $this->json(['error' => $this->translator->trans('error.meal_plan.entry_dish_or_ingredient', ['%num%' => $i + 1])], 422);
             }
 
             if ($hasDish) {
                 $dish = $this->dishes->find((int) $item['dishId']);
                 if ($dish === null) {
-                    return $this->json(['error' => sprintf('Запис #%d: страву не знайдено', $i + 1)], 422);
+                    return $this->json(['error' => $this->translator->trans('error.meal_plan.entry_dish_not_found', ['%num%' => $i + 1])], 422);
                 }
                 $entry->setDish($dish);
             } else {
                 $ingredient = $this->ingredients->find((int) $item['ingredientId']);
                 $amount = (float) ($item['amount'] ?? 0);
                 if ($ingredient === null || $amount <= 0) {
-                    return $this->json(['error' => sprintf('Запис #%d: потрібні коректні ingredientId і amount > 0', $i + 1)], 422);
+                    return $this->json(['error' => $this->translator->trans('error.meal_plan.entry_ingredient_amount', ['%num%' => $i + 1])], 422);
                 }
                 $entry->setIngredient($ingredient)->setAmount($amount);
             }
@@ -171,7 +173,7 @@ class MealPlanController extends AbstractController
         try {
             $data = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'Невалідний JSON'], 400);
+            return $this->json(['error' => $this->translator->trans('error.invalid_json')], 400);
         }
 
         $date = $this->parseDate((string) ($data['date'] ?? ''));
@@ -179,7 +181,7 @@ class MealPlanController extends AbstractController
         $slot = MealType::tryFrom((string) ($data['slot'] ?? ''));
 
         if ($date === null || $member === null || $slot === null) {
-            return $this->json(['error' => 'Потрібні коректні date, familyMemberId, slot'], 422);
+            return $this->json(['error' => $this->translator->trans('error.meal_plan.add_payload')], 422);
         }
 
         $entry = (new MealPlanEntry())
@@ -190,20 +192,20 @@ class MealPlanController extends AbstractController
         $hasDish = !empty($data['dishId']);
         $hasIngredient = !empty($data['ingredientId']);
         if ($hasDish === $hasIngredient) {
-            return $this->json(['error' => 'Вкажіть або dishId, або ingredientId — рівно одне з двох'], 422);
+            return $this->json(['error' => $this->translator->trans('error.meal_plan.dish_or_ingredient')], 422);
         }
 
         if ($hasDish) {
             $dish = $this->dishes->find((int) $data['dishId']);
             if ($dish === null) {
-                return $this->json(['error' => 'Страву не знайдено'], 422);
+                return $this->json(['error' => $this->translator->trans('error.meal_plan.dish_not_found')], 422);
             }
             $entry->setDish($dish);
         } else {
             $ingredient = $this->ingredients->find((int) $data['ingredientId']);
             $amount = (float) ($data['amount'] ?? 0);
             if ($ingredient === null || $amount <= 0) {
-                return $this->json(['error' => 'Для продукту потрібні коректні ingredientId і amount > 0'], 422);
+                return $this->json(['error' => $this->translator->trans('error.meal_plan.ingredient_amount')], 422);
             }
             $entry->setIngredient($ingredient)->setAmount($amount);
         }
@@ -234,7 +236,7 @@ class MealPlanController extends AbstractController
         try {
             $data = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'Невалідний JSON'], 400);
+            return $this->json(['error' => $this->translator->trans('error.invalid_json')], 400);
         }
 
         $sourceFrom = $this->parseDate((string) ($data['sourceFrom'] ?? ''));
@@ -242,19 +244,19 @@ class MealPlanController extends AbstractController
         $targetFrom = $this->parseDate((string) ($data['targetFrom'] ?? ''));
 
         if ($sourceFrom === null || $sourceTo === null || $targetFrom === null || $sourceFrom > $sourceTo) {
-            return $this->json(['error' => 'Потрібні коректні sourceFrom, sourceTo, targetFrom'], 422);
+            return $this->json(['error' => $this->translator->trans('error.meal_plan.copy_payload')], 422);
         }
 
         $rangeDays = (int) $sourceFrom->diff($sourceTo)->format('%a');
         if ($rangeDays + 1 > self::COPY_MAX_DAYS) {
-            return $this->json(['error' => sprintf('Діапазон копіювання — не більше %d дн.', self::COPY_MAX_DAYS)], 422);
+            return $this->json(['error' => $this->translator->trans('error.meal_plan.copy_range', ['%days%' => self::COPY_MAX_DAYS])], 422);
         }
 
         $member = null;
         if (!empty($data['familyMemberId'])) {
             $member = $this->members->find((int) $data['familyMemberId']);
             if ($member === null) {
-                return $this->json(['error' => 'Члена сім\'ї не знайдено'], 422);
+                return $this->json(['error' => $this->translator->trans('error.member_not_found')], 422);
             }
         }
 

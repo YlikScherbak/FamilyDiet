@@ -1,0 +1,40 @@
+# API messages, English.
+error:
+    invalid_json: 'Invalid JSON'
+    member_not_found: 'Family member not found'
+    meal_plan:
+        from_to_required: 'Parameters from and to are required, format YYYY-MM-DD'
+        day_payload: 'Valid date, familyMemberId and entries[] are required'
+        entry_unknown_slot: 'Entry #%num%: unknown slot'
+        entry_dish_or_ingredient: 'Entry #%num%: provide either dishId or ingredientId'
+        entry_dish_not_found: 'Entry #%num%: dish not found'
+        entry_ingredient_amount: 'Entry #%num%: valid ingredientId and amount > 0 are required'
+        add_payload: 'Valid date, familyMemberId and slot are required'
+        dish_or_ingredient: 'Provide either dishId or ingredientId — exactly one of the two'
+        dish_not_found: 'Dish not found'
+        ingredient_amount: 'A product needs a valid ingredientId and amount > 0'
+        copy_payload: 'Valid sourceFrom, sourceTo and targetFrom are required'
+        copy_range: 'Copy range is limited to %days% days'
+    ingredient:
+        unknown_category_or_unit: 'Unknown category or unit of measure'
+        piece_weight_required: 'Piece-based ingredients need the weight of one piece in grams'
+        used_in_dishes: 'The ingredient is used in dishes (%count% times) — remove it from them first'
+    dish:
+        unknown_category: 'Unknown dish category'
+        unknown_member: 'Unknown family member in a portion'
+        unknown_ingredient: 'Unknown ingredient in a portion'
+        amount_positive: 'Ingredient amount must be greater than zero'
+        one_portion_per_member: 'A family member can have only one portion'
+        planned_in_menu: 'The dish is planned in the menu (%count% times) — remove it from the calendar first'
+    health:
+        payload_required: 'Valid familyMemberId, date and type are required'
+        time_format: 'Time must be in HH:MM format'
+        systolic_range: 'Systolic pressure must be between 60 and 260'
+        diastolic_range: 'Diastolic pressure must be between 40 and 160'
+        systolic_gt_diastolic: 'Systolic pressure must be higher than diastolic'
+        pulse_range: 'Pulse must be between 30 and 220'
+        weight_range: 'Weight must be between 20 and 400 kg'
+        severity_range: 'Severity is from 1 to 5'
+        custom_title_required: 'A custom event needs a name'
+    setting:
+        too_large: 'The setting is too large'

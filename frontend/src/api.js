@@ -1,7 +1,13 @@
+import { i18n } from './i18n'
+
 async function http(method, path, body) {
   const res = await fetch(`/api${path}`, {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    headers: {
+      // Бекенд віддає повідомлення помилок мовою інтерфейсу
+      'Accept-Language': i18n.global.locale.value,
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (res.status === 204) return null

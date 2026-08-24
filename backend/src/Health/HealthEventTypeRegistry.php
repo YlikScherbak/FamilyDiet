@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Health;
 
+use Symfony\Contracts\Translation\TranslatorInterface;
+
 /**
  * Реєстр типів подій здоров'я. Тип визначає, які структуровані поля дозволені
  * в payload і як їх валідувати. Нові типи (цукор, температура) — це лише
@@ -11,6 +13,10 @@ namespace App\Health;
  */
 final class HealthEventTypeRegistry
 {
+    public function __construct(private readonly TranslatorInterface $translator)
+    {
+    }
+
     /** Типи з болем/симптомом можуть мати тяжкість 1–5. */
     private const WITH_SEVERITY = ['headache', 'migraine', 'symptom'];
 
@@ -39,16 +45,16 @@ final class HealthEventTypeRegistry
             $pulse = (int) ($payload['pulse'] ?? 0);
 
             if ($systolic < 60 || $systolic > 260) {
-                $errors['systolic'] = 'Систолічний тиск має бути в межах 60–260';
+                $errors['systolic'] = $this->translator->trans('error.health.systolic_range');
             }
             if ($diastolic < 40 || $diastolic > 160) {
-                $errors['diastolic'] = 'Діастолічний тиск має бути в межах 40–160';
+                $errors['diastolic'] = $this->translator->trans('error.health.diastolic_range');
             }
             if ($errors === [] && $systolic <= $diastolic) {
-                $errors['systolic'] = 'Систолічний тиск має бути більшим за діастолічний';
+                $errors['systolic'] = $this->translator->trans('error.health.systolic_gt_diastolic');
             }
             if ($pulse < 30 || $pulse > 220) {
-                $errors['pulse'] = 'Пульс має бути в межах 30–220';
+                $errors['pulse'] = $this->translator->trans('error.health.pulse_range');
             }
 
             $clean = ['systolic' => $systolic, 'diastolic' => $diastolic, 'pulse' => $pulse];
@@ -57,7 +63,7 @@ final class HealthEventTypeRegistry
         if ($type === 'weight') {
             $kg = (float) ($payload['kg'] ?? 0);
             if ($kg < 20 || $kg > 400) {
-                $errors['kg'] = 'Вага має бути в межах 20–400 кг';
+                $errors['kg'] = $this->translator->trans('error.health.weight_range');
             }
             $clean = ['kg' => round($kg, 1)];
         }
@@ -65,7 +71,7 @@ final class HealthEventTypeRegistry
         if (in_array($type, self::WITH_SEVERITY, true) && isset($payload['severity']) && $payload['severity'] !== '') {
             $severity = (int) $payload['severity'];
             if ($severity < 1 || $severity > 5) {
-                $errors['severity'] = 'Тяжкість — від 1 до 5';
+                $errors['severity'] = $this->translator->trans('error.health.severity_range');
             } else {
                 $clean['severity'] = $severity;
             }
@@ -74,7 +80,7 @@ final class HealthEventTypeRegistry
         if ($type === 'custom') {
             $title = trim((string) ($payload['title'] ?? ''));
             if ($title === '') {
-                $errors['title'] = 'Для власної події вкажіть назву';
+                $errors['title'] = $this->translator->trans('error.health.custom_title_required');
             } else {
                 $clean['title'] = mb_substr($title, 0, 100);
             }
