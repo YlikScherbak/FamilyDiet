@@ -216,6 +216,63 @@ function toggleType(type) {
   else chartCfg.enabled.splice(i, 1)
 }
 
+// --- Пресети графіка: іменовані комбінації накладень, зберігаються в БД ---------
+
+const DEFAULT_PRESETS = [
+  { name: 'Тиск і мігрені', enabled: ['migraine', 'headache', 'medication'], types: null },
+  { name: 'Вага і тиск', enabled: ['weight'], types: null },
+]
+
+const presets = ref([])
+const newPresetName = ref('')
+
+async function loadPresets() {
+  try {
+    const saved = await api.get('/settings/health_chart_presets')
+    presets.value =
+      Array.isArray(saved.presets) && saved.presets.length ? saved.presets : DEFAULT_PRESETS
+  } catch {
+    presets.value = DEFAULT_PRESETS
+  }
+}
+
+function persistPresets() {
+  api.put('/settings/health_chart_presets', { presets: presets.value }).catch(() => {})
+}
+
+const isActivePreset = (p) =>
+  JSON.stringify([...p.enabled].sort()) === JSON.stringify([...chartCfg.enabled].sort())
+
+function applyChartPreset(p) {
+  chartCfg.enabled = [...p.enabled]
+  if (p.types) {
+    for (const [type, cfg] of Object.entries(p.types)) {
+      if (chartCfg.types[type]) chartCfg.types[type] = { ...cfg }
+    }
+  }
+}
+
+/** Зберігає поточну комбінацію накладень і стилів під назвою (та сама назва — перезапис). */
+function saveCurrentAsPreset() {
+  const name = newPresetName.value.trim()
+  if (!name) return
+  const preset = {
+    name: name.slice(0, 40),
+    enabled: [...chartCfg.enabled],
+    types: JSON.parse(JSON.stringify(chartCfg.types)),
+  }
+  const i = presets.value.findIndex((p) => p.name === preset.name)
+  if (i >= 0) presets.value[i] = preset
+  else presets.value.push(preset)
+  newPresetName.value = ''
+  persistPresets()
+}
+
+function removePreset(preset) {
+  presets.value = presets.value.filter((p) => p !== preset)
+  persistPresets()
+}
+
 const overlayEvents = computed(() =>
   events.value.filter((e) => chartCfg.enabled.includes(e.type) && inRange(e)),
 )
@@ -258,7 +315,11 @@ function baseOptions(annotations, withSeverityAxis, withKgAxis = false) {
     x: {
       type: 'time',
       adapters: { date: { locale: uk } },
-      time: { tooltipFormat: 'dd.MM HH:mm', displayFormats: { day: 'dd.MM', hour: 'dd.MM HH:mm' } },
+      time: {
+        tooltipFormat: 'dd.MM HH:mm',
+        minUnit: 'hour',
+        displayFormats: { day: 'dd.MM', hour: 'dd.MM HH:mm' },
+      },
       ticks: { maxRotation: 60, autoSkip: true, maxTicksLimit: 12 },
     },
     // Явно, інакше датасети без yAxisID чіпляються до першої знайденої осі (severity)
@@ -524,7 +585,7 @@ onBeforeUnmount(() => {
 watch(memberId, load)
 
 onMounted(async () => {
-  await Promise.all([app.loadMembers(), loadChartCfg()])
+  await Promise.all([app.loadMembers(), loadChartCfg(), loadPresets()])
   memberId.value = app.members[0]?.id ?? null
 })
 </script>
@@ -566,6 +627,19 @@ onMounted(async () => {
         <input v-model="range.to" type="date" @change="range.preset = -1" />
       </div>
 
+      <div v-if="presets.length" class="toolbar" style="margin-bottom: 8px">
+        <span class="muted">Пресети:</span>
+        <button
+          v-for="p in presets"
+          :key="p.name"
+          class="small"
+          :class="{ primary: isActivePreset(p) }"
+          @click="applyChartPreset(p)"
+        >
+          {{ p.name }}
+        </button>
+      </div>
+
       <div class="toolbar" style="margin-bottom: 8px">
         <span class="muted">Накласти на графік:</span>
         <button
@@ -599,6 +673,20 @@ onMounted(async () => {
           Події без числового значення завжди відображаються маркером (лінія на моменті часу або
           смуга на день). Зберігається автоматично.
         </p>
+
+        <div class="toolbar" style="margin: 12px 0 4px">
+          <input v-model="newPresetName" placeholder="Назва пресета" style="width: 220px" />
+          <button class="small" :disabled="!newPresetName.trim()" @click="saveCurrentAsPreset">
+            💾 Зберегти поточний як пресет
+          </button>
+        </div>
+        <div v-for="p in presets" :key="'m' + p.name" class="cfg-row">
+          <span class="cfg-name">{{ p.name }}</span>
+          <span class="muted" style="flex: 1; font-size: 12.5px">
+            {{ p.enabled.map((v) => healthType(v)?.icon).join(' ') || 'без накладень' }}
+          </span>
+          <button class="small danger" @click="removePreset(p)">✕</button>
+        </div>
       </div>
 
       <template v-if="hasChartData">
