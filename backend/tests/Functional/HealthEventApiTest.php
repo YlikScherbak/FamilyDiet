@@ -96,6 +96,24 @@ final class HealthEventApiTest extends ApiTestCase
         $this->assertStatus(201);
     }
 
+    public function testWeightEventValidationAndRounding(): void
+    {
+        $member = $this->createMember('Вага-1');
+        $base = ['familyMemberId' => $member->getId(), 'date' => '2026-03-02', 'type' => 'weight'];
+
+        $this->request('POST', '/api/health-events', $base + ['payload' => ['kg' => 82.46]]);
+        $this->assertStatus(201);
+        /** @var array{payload: array{kg: float}} $created */
+        $created = $this->responseJson();
+        self::assertSame(82.5, (float) $created['payload']['kg']);
+
+        $this->request('POST', '/api/health-events', $base + ['payload' => ['kg' => 500]]);
+        $this->assertStatus(422);
+
+        $this->request('POST', '/api/health-events', $base + ['payload' => []]);
+        $this->assertStatus(422);
+    }
+
     public function testRejectsUnknownTypeAndBadTime(): void
     {
         $member = $this->createMember('Подія-2');

@@ -14,7 +14,7 @@ final class HealthEventTypeRegistry
     /** Типи з болем/симптомом можуть мати тяжкість 1–5. */
     private const WITH_SEVERITY = ['headache', 'migraine', 'symptom'];
 
-    public const TYPES = ['pressure', 'headache', 'migraine', 'medication', 'symptom', 'note', 'custom'];
+    public const TYPES = ['pressure', 'weight', 'headache', 'migraine', 'medication', 'symptom', 'note', 'custom'];
 
     public function isKnown(string $type): bool
     {
@@ -52,6 +52,14 @@ final class HealthEventTypeRegistry
             }
 
             $clean = ['systolic' => $systolic, 'diastolic' => $diastolic, 'pulse' => $pulse];
+        }
+
+        if ($type === 'weight') {
+            $kg = (float) ($payload['kg'] ?? 0);
+            if ($kg < 20 || $kg > 400) {
+                $errors['kg'] = 'Вага має бути в межах 20–400 кг';
+            }
+            $clean = ['kg' => round($kg, 1)];
         }
 
         if (in_array($type, self::WITH_SEVERITY, true) && isset($payload['severity']) && $payload['severity'] !== '') {

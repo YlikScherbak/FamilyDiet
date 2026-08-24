@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\HealthEvent;
 use App\Entity\MealPlanEntry;
-use App\Entity\WeightEntry;
 use App\Enum\MealType;
 use App\Repository\DishRepository;
 use App\Repository\FamilyMemberRepository;
@@ -58,7 +58,9 @@ class SeedDemoCommand extends Command
             $this->em->createQuery(
                 'DELETE FROM App\Entity\MealPlanEntry e WHERE e.date >= :from AND e.date <= :to'
             )->execute(['from' => $monday, 'to' => $sunday]);
-            $this->em->createQuery('DELETE FROM App\Entity\WeightEntry w')->execute();
+            $this->em->createQuery(
+                "DELETE FROM App\Entity\HealthEvent h WHERE h.type = 'weight'"
+            )->execute();
 
             // Меню: кожному — свій набір страв на день, зсув по днях дає різноманіття без random
             foreach (range(0, 6) as $day) {
@@ -82,7 +84,7 @@ class SeedDemoCommand extends Command
                 }
             }
 
-            // Вага: 8 тижнів історії, легкий тренд униз, детермінований «шум»
+            // Вага: 8 тижнів історії подіями журналу здоров'я, легкий тренд униз, детермінований «шум»
             foreach ($members as $mi => $member) {
                 $base = 92.0 - $mi * 18.0;
                 foreach (range(0, 7) as $week) {
@@ -93,10 +95,11 @@ class SeedDemoCommand extends Command
                         }
                         $wobble = (($week * 7 + $offset + $mi * 3) % 5 - 2) / 10;
                         $this->em->persist(
-                            (new WeightEntry())
+                            (new HealthEvent())
                                 ->setFamilyMember($member)
                                 ->setDate($date)
-                                ->setWeightKg(round($base - $week * 0.3 + $wobble, 1))
+                                ->setType('weight')
+                                ->setPayload(['kg' => round($base - $week * 0.3 + $wobble, 1)])
                         );
                         ++$weighed;
                     }
