@@ -18,7 +18,6 @@ onMounted(() => {
       <RouterLink to="/">Календар</RouterLink>
       <RouterLink to="/dishes">Страви</RouterLink>
       <RouterLink to="/ingredients">Інгредієнти</RouterLink>
-      <RouterLink to="/weight">Вага</RouterLink>
       <RouterLink to="/health">Здоров'я</RouterLink>
     </nav>
   </header>

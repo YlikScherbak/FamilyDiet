@@ -36,6 +36,7 @@ const form = reactive({
   systolic: null,
   diastolic: null,
   pulse: null,
+  kg: null,
   severity: null,
   title: '',
   note: '',
@@ -51,6 +52,7 @@ function openCreate(date) {
     systolic: null,
     diastolic: null,
     pulse: null,
+    kg: null,
     severity: null,
     title: '',
     note: '',
@@ -67,6 +69,7 @@ function openEdit(event) {
     systolic: event.payload.systolic ?? null,
     diastolic: event.payload.diastolic ?? null,
     pulse: event.payload.pulse ?? null,
+    kg: event.payload.kg ?? null,
     severity: event.payload.severity ?? null,
     title: event.payload.title ?? '',
     note: event.note ?? '',
@@ -83,6 +86,7 @@ async function saveEvent() {
     payload.diastolic = form.diastolic
     payload.pulse = form.pulse
   }
+  if (formType.value?.kg) payload.kg = form.kg
   if (formType.value?.severity && form.severity) payload.severity = form.severity
   if (formType.value?.custom) payload.title = form.title
 
@@ -118,6 +122,7 @@ function eventTitle(e) {
   const t = healthType(e.type)
   if (e.type === 'pressure')
     return `${t.icon} ${e.payload.systolic}/${e.payload.diastolic} · ${e.payload.pulse}`
+  if (e.type === 'weight') return `${t.icon} ${e.payload.kg} кг`
   if (e.type === 'custom') return `${t.icon} ${e.payload.title}`
   const severity = e.payload.severity ? ` (${e.payload.severity}/5)` : ''
   return `${t.icon} ${t.label}${severity}`
@@ -172,7 +177,7 @@ const pressureEvents = computed(() =>
 // --- Накладені типи подій і їх налаштування (зберігаються в БД) -----------------
 
 const OVERLAY_TYPES = HEALTH_EVENT_TYPES.filter((t) => t.value !== 'pressure')
-const defaultStyle = (t) => (t.severity ? 'point' : 'marker')
+const defaultStyle = (t) => (t.severity ? 'point' : t.kg ? 'line' : 'marker')
 
 const showCfg = ref(false)
 const chartCfg = reactive({ enabled: [], types: {} })
@@ -219,15 +224,36 @@ const hasChartData = computed(
   () => pressureEvents.value.length > 0 || overlayEvents.value.length > 0,
 )
 
+/** Середня вага за ISO-тижнями (пн–нд) з подій типу weight у обраному періоді. */
+const weightWeekly = computed(() => {
+  const byWeek = new Map()
+  for (const e of events.value) {
+    if (e.type !== 'weight' || e.payload.kg == null || !inRange(e)) continue
+    const d = new Date(`${e.date}T00:00:00`)
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const bucket = byWeek.get(key) ?? { sum: 0, n: 0 }
+    bucket.sum += e.payload.kg
+    bucket.n += 1
+    byWeek.set(key, bucket)
+  }
+
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([week, { sum, n }]) => ({ week, avg: Math.round((sum / n) * 100) / 100, n }))
+})
+
 const pressureCanvas = ref(null)
 const pulseCanvas = ref(null)
+const weightCanvas = ref(null)
 let pressureChart = null
 let pulseChart = null
+let weightChart = null
 
 // Подія без часу ставиться на полудень (для точок) або розтягується смугою на день (для маркерів)
 const eventMoment = (e) => new Date(`${e.date}T${e.time ?? '12:00'}:00`)
 
-function baseOptions(annotations, withSeverityAxis) {
+function baseOptions(annotations, withSeverityAxis, withKgAxis = false) {
   const scales = {
     x: {
       type: 'time',
@@ -247,6 +273,13 @@ function baseOptions(annotations, withSeverityAxis) {
       title: { display: true, text: 'Тяжкість, 1–5' },
     }
   }
+  if (withKgAxis) {
+    scales.kg = {
+      position: 'right',
+      grid: { drawOnChartArea: false },
+      title: { display: true, text: 'кг' },
+    }
+  }
 
   return {
     responsive: true,
@@ -262,6 +295,9 @@ function baseOptions(annotations, withSeverityAxis) {
             if (ctx.dataset.yAxisID === 'severity') {
               return `${base}/5${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
             }
+            if (ctx.dataset.yAxisID === 'kg') {
+              return `${base} кг${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
+            }
             return base
           },
         },
@@ -271,7 +307,10 @@ function baseOptions(annotations, withSeverityAxis) {
   }
 }
 
-/** Датасети тяжкості (точка/стовпчик/лінія) для увімкнених типів. Події без тяжкості стають маркерами. */
+/**
+ * Датасети накладень (точка/стовпчик/лінія) для увімкнених типів: тяжкість 1–5 —
+ * на осі severity, вага — на власній осі кг. Події без числа стають маркерами.
+ */
 function overlayDatasets() {
   const datasets = []
   for (const type of chartCfg.enabled) {
@@ -279,18 +318,22 @@ function overlayDatasets() {
     const t = healthType(type)
     if (!cfg || cfg.style === 'marker') continue
     const points = overlayEvents.value
-      .filter((e) => e.type === type && e.payload.severity != null)
-      .map((e) => ({ x: eventMoment(e), y: e.payload.severity, note: e.note }))
+      .filter((e) => e.type === type && (t.kg ? e.payload.kg != null : e.payload.severity != null))
+      .map((e) => ({
+        x: eventMoment(e),
+        y: t.kg ? e.payload.kg : e.payload.severity,
+        note: e.note,
+      }))
     if (points.length === 0) continue
     datasets.push({
       type: cfg.style === 'bar' ? 'bar' : cfg.style === 'line' ? 'line' : 'scatter',
       label: `${t.icon} ${t.label}`,
       data: points,
-      yAxisID: 'severity',
+      yAxisID: t.kg ? 'kg' : 'severity',
       borderColor: cfg.color,
       backgroundColor: cfg.style === 'bar' ? cfg.color + '99' : cfg.color,
-      pointStyle: 'rectRot',
-      pointRadius: 6,
+      pointStyle: t.kg ? 'circle' : 'rectRot',
+      pointRadius: t.kg ? 3.5 : 6,
       barThickness: 10,
       tension: 0.25,
       spanGaps: true,
@@ -307,11 +350,17 @@ function overlayAnnotations() {
   for (const e of overlayEvents.value) {
     const cfg = chartCfg.types[e.type]
     const t = healthType(e.type)
-    const asMarker = !cfg || cfg.style === 'marker' || e.payload.severity == null
+    const hasValue = t.kg ? e.payload.kg != null : t.severity ? e.payload.severity != null : false
+    const asMarker = !cfg || cfg.style === 'marker' || !hasValue
     if (!asMarker) continue
+    const valueText = e.payload.severity
+      ? ` ${e.payload.severity}/5`
+      : e.payload.kg
+        ? ` ${e.payload.kg}`
+        : ''
     const label = {
       display: true,
-      content: `${t.icon}${e.payload.severity ? ` ${e.payload.severity}/5` : ''}`,
+      content: `${t.icon}${valueText}`,
       position: 'end',
       backgroundColor: cfg.color,
       font: { size: 10 },
@@ -356,6 +405,43 @@ const normLine = (value, label, color) => ({
   },
 })
 
+function renderWeeklyWeightChart() {
+  weightChart?.destroy()
+  weightChart = null
+  if (weightWeekly.value.length === 0 || !weightCanvas.value) return
+
+  weightChart = new Chart(weightCanvas.value, {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: '⚖️ Середня вага за тиждень, кг',
+          data: weightWeekly.value.map((w) => ({
+            x: new Date(`${w.week}T12:00:00`),
+            y: w.avg,
+            n: w.n,
+          })),
+          yAxisID: 'y',
+          borderColor: '#0f766e',
+          backgroundColor: '#0f766e',
+          tension: 0.25,
+        },
+      ],
+    },
+    options: {
+      ...baseOptions({}, false),
+      plugins: {
+        legend: { labels: { usePointStyle: true, boxHeight: 6 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.parsed.y} кг · ${ctx.raw.n} вим.`,
+          },
+        },
+      },
+    },
+  })
+}
+
 function renderCharts() {
   const data = pressureEvents.value
 
@@ -363,6 +449,7 @@ function renderCharts() {
   pulseChart?.destroy()
   pressureChart = null
   pulseChart = null
+  renderWeeklyWeightChart()
   if (!pressureCanvas.value) return
   const overlays = overlayDatasets()
   if (data.length === 0 && overlays.length === 0 && overlayEvents.value.length === 0) return
@@ -396,7 +483,8 @@ function renderCharts() {
         diaNorm: normLine(85, 'норма ДАТ 85', '#1d4ed8'),
         ...overlayAnnotations(),
       },
-      overlays.length > 0,
+      overlays.some((d) => d.yAxisID === 'severity'),
+      overlays.some((d) => d.yAxisID === 'kg'),
     ),
   })
 
@@ -430,6 +518,7 @@ watch(
 onBeforeUnmount(() => {
   pressureChart?.destroy()
   pulseChart?.destroy()
+  weightChart?.destroy()
 })
 
 watch(memberId, load)
@@ -497,9 +586,9 @@ onMounted(async () => {
         <div v-for="t in OVERLAY_TYPES" :key="t.value" class="cfg-row">
           <span class="cfg-name">{{ t.icon }} {{ t.label }}</span>
           <input v-model="chartCfg.types[t.value].color" type="color" />
-          <select v-model="chartCfg.types[t.value].style" :disabled="!t.severity">
+          <select v-model="chartCfg.types[t.value].style" :disabled="!t.severity && !t.kg">
             <option value="marker">маркер</option>
-            <template v-if="t.severity">
+            <template v-if="t.severity || t.kg">
               <option value="point">точка</option>
               <option value="bar">стовпчик</option>
               <option value="line">лінія</option>
@@ -521,6 +610,10 @@ onMounted(async () => {
       <p v-else class="muted" style="margin: 8px 0 0">
         Немає даних за обраний період. Додайте замір тиску або ввімкніть типи подій вище.
       </p>
+
+      <div v-if="weightWeekly.length" style="height: 190px; margin-top: 12px">
+        <canvas ref="weightCanvas"></canvas>
+      </div>
     </div>
 
     <!-- Модалка події -->
@@ -555,6 +648,18 @@ onMounted(async () => {
             type="number"
             placeholder="Пульс"
             style="width: 100px"
+          />
+        </div>
+
+        <div v-if="formType?.kg" class="toolbar">
+          <input
+            v-model.number="form.kg"
+            type="number"
+            step="0.1"
+            min="20"
+            max="400"
+            placeholder="Вага, кг"
+            style="width: 130px"
           />
         </div>
 

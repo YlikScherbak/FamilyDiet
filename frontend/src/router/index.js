@@ -17,8 +17,9 @@ const router = createRouter({
       name: 'ingredients',
       component: () => import('../pages/IngredientsPage.vue'),
     },
-    { path: '/weight', name: 'weight', component: () => import('../pages/WeightPage.vue') },
     { path: '/health', name: 'health', component: () => import('../pages/HealthPage.vue') },
+    // Стара сторінка ваги переїхала в журнал здоров'я
+    { path: '/weight', redirect: '/health' },
   ],
 })
 
