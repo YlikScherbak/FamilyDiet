@@ -175,8 +175,11 @@ const pressureEvents = computed(() =>
 )
 
 // --- Накладені типи подій і їх налаштування (зберігаються в БД) -----------------
+// Тиск — такий самий перемикач, як і решта, лише з фіксованим виглядом
+// (САТ/ДАТ/пульс + межі норми), тому в панелі стилів його немає.
 
-const OVERLAY_TYPES = HEALTH_EVENT_TYPES.filter((t) => t.value !== 'pressure')
+const OVERLAY_TYPES = HEALTH_EVENT_TYPES
+const PANEL_TYPES = HEALTH_EVENT_TYPES.filter((t) => t.value !== 'pressure')
 const defaultStyle = (t) => (t.severity ? 'point' : t.kg ? 'line' : 'marker')
 
 const showCfg = ref(false)
@@ -193,7 +196,7 @@ async function loadChartCfg() {
         style: saved.types?.[t.value]?.style ?? defaultStyle(t),
       }
     }
-    chartCfg.enabled = Array.isArray(saved.enabled) ? saved.enabled : []
+    chartCfg.enabled = Array.isArray(saved.enabled) ? saved.enabled : ['pressure']
   } finally {
     cfgLoaded = true
   }
@@ -219,8 +222,13 @@ function toggleType(type) {
 // --- Пресети графіка: іменовані комбінації накладень, зберігаються в БД ---------
 
 const DEFAULT_PRESETS = [
-  { name: 'Тиск і мігрені', enabled: ['migraine', 'headache', 'medication'], types: null },
-  { name: 'Вага і тиск', enabled: ['weight'], types: null },
+  {
+    name: 'Тиск і мігрені',
+    enabled: ['pressure', 'migraine', 'headache', 'medication'],
+    types: null,
+  },
+  { name: 'Вага і тиск', enabled: ['pressure', 'weight'], types: null },
+  { name: 'Болі та ліки', enabled: ['migraine', 'headache', 'medication'], types: null },
 ]
 
 const presets = ref([])
@@ -277,40 +285,15 @@ const overlayEvents = computed(() =>
   events.value.filter((e) => chartCfg.enabled.includes(e.type) && inRange(e)),
 )
 
-const hasChartData = computed(
-  () => pressureEvents.value.length > 0 || overlayEvents.value.length > 0,
-)
-
-/** Середня вага за ISO-тижнями (пн–нд) з подій типу weight у обраному періоді. */
-const weightWeekly = computed(() => {
-  const byWeek = new Map()
-  for (const e of events.value) {
-    if (e.type !== 'weight' || e.payload.kg == null || !inRange(e)) continue
-    const d = new Date(`${e.date}T00:00:00`)
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const bucket = byWeek.get(key) ?? { sum: 0, n: 0 }
-    bucket.sum += e.payload.kg
-    bucket.n += 1
-    byWeek.set(key, bucket)
-  }
-
-  return [...byWeek.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([week, { sum, n }]) => ({ week, avg: Math.round((sum / n) * 100) / 100, n }))
-})
+const hasChartData = computed(() => overlayEvents.value.length > 0)
 
 const pressureCanvas = ref(null)
-const pulseCanvas = ref(null)
-const weightCanvas = ref(null)
 let pressureChart = null
-let pulseChart = null
-let weightChart = null
 
 // Подія без часу ставиться на полудень (для точок) або розтягується смугою на день (для маркерів)
 const eventMoment = (e) => new Date(`${e.date}T${e.time ?? '12:00'}:00`)
 
-function baseOptions(annotations, withSeverityAxis, withKgAxis = false) {
+function baseOptions(annotations, axes = {}) {
   const scales = {
     x: {
       type: 'time',
@@ -323,9 +306,9 @@ function baseOptions(annotations, withSeverityAxis, withKgAxis = false) {
       ticks: { maxRotation: 60, autoSkip: true, maxTicksLimit: 12 },
     },
     // Явно, інакше датасети без yAxisID чіпляються до першої знайденої осі (severity)
-    y: { position: 'left' },
+    y: { position: 'left', display: axes.y !== false },
   }
-  if (withSeverityAxis) {
+  if (axes.severity) {
     scales.severity = {
       position: 'right',
       min: 0,
@@ -334,11 +317,18 @@ function baseOptions(annotations, withSeverityAxis, withKgAxis = false) {
       title: { display: true, text: 'Тяжкість, 1–5' },
     }
   }
-  if (withKgAxis) {
+  if (axes.kg) {
     scales.kg = {
       position: 'right',
       grid: { drawOnChartArea: false },
       title: { display: true, text: 'кг' },
+    }
+  }
+  if (axes.bpm) {
+    scales.bpm = {
+      position: 'right',
+      grid: { drawOnChartArea: false },
+      title: { display: true, text: 'Пульс, уд./хв' },
     }
   }
 
@@ -359,6 +349,9 @@ function baseOptions(annotations, withSeverityAxis, withKgAxis = false) {
             if (ctx.dataset.yAxisID === 'kg') {
               return `${base} кг${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
             }
+            if (ctx.dataset.yAxisID === 'bpm') {
+              return `${base} уд./хв`
+            }
             return base
           },
         },
@@ -375,6 +368,7 @@ function baseOptions(annotations, withSeverityAxis, withKgAxis = false) {
 function overlayDatasets() {
   const datasets = []
   for (const type of chartCfg.enabled) {
+    if (type === 'pressure') continue // малюється окремо: САТ/ДАТ + пульс
     const cfg = chartCfg.types[type]
     const t = healthType(type)
     if (!cfg || cfg.style === 'marker') continue
@@ -409,6 +403,7 @@ function overlayAnnotations() {
   const annotations = {}
   let i = 0
   for (const e of overlayEvents.value) {
+    if (e.type === 'pressure') continue
     const cfg = chartCfg.types[e.type]
     const t = healthType(e.type)
     const hasValue = t.kg ? e.payload.kg != null : t.severity ? e.payload.severity != null : false
@@ -466,104 +461,67 @@ const normLine = (value, label, color) => ({
   },
 })
 
-function renderWeeklyWeightChart() {
-  weightChart?.destroy()
-  weightChart = null
-  if (weightWeekly.value.length === 0 || !weightCanvas.value) return
-
-  weightChart = new Chart(weightCanvas.value, {
-    type: 'line',
-    data: {
-      datasets: [
-        {
-          label: '⚖️ Середня вага за тиждень, кг',
-          data: weightWeekly.value.map((w) => ({
-            x: new Date(`${w.week}T12:00:00`),
-            y: w.avg,
-            n: w.n,
-          })),
-          yAxisID: 'y',
-          borderColor: '#0f766e',
-          backgroundColor: '#0f766e',
-          tension: 0.25,
-        },
-      ],
-    },
-    options: {
-      ...baseOptions({}, false),
-      plugins: {
-        legend: { labels: { usePointStyle: true, boxHeight: 6 } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${ctx.parsed.y} кг · ${ctx.raw.n} вим.`,
-          },
-        },
-      },
-    },
-  })
-}
-
 function renderCharts() {
-  const data = pressureEvents.value
-
   pressureChart?.destroy()
-  pulseChart?.destroy()
   pressureChart = null
-  pulseChart = null
-  renderWeeklyWeightChart()
   if (!pressureCanvas.value) return
+
+  const pressureOn = chartCfg.enabled.includes('pressure')
+  const data = pressureOn ? pressureEvents.value : []
   const overlays = overlayDatasets()
   if (data.length === 0 && overlays.length === 0 && overlayEvents.value.length === 0) return
 
+  const pressureDatasets =
+    data.length === 0
+      ? []
+      : [
+          {
+            label: 'Систолічний (САТ)',
+            data: data.map((e) => ({ x: eventMoment(e), y: e.payload.systolic })),
+            yAxisID: 'y',
+            borderColor: '#b91c1c',
+            backgroundColor: '#b91c1c',
+            tension: 0.25,
+          },
+          {
+            label: 'Діастолічний (ДАТ)',
+            data: data.map((e) => ({ x: eventMoment(e), y: e.payload.diastolic })),
+            yAxisID: 'y',
+            borderColor: '#1d4ed8',
+            backgroundColor: '#1d4ed8',
+            tension: 0.25,
+          },
+          {
+            label: 'Пульс',
+            data: data.map((e) => ({ x: eventMoment(e), y: e.payload.pulse })),
+            yAxisID: 'bpm',
+            borderColor: '#2f6b4f',
+            backgroundColor: '#2f6b4f',
+            borderDash: [3, 3],
+            tension: 0.25,
+          },
+        ]
+
+  const pressureAnnotations =
+    data.length === 0
+      ? {}
+      : {
+          sysNorm: normLine(135, 'норма САТ 135', '#b91c1c'),
+          diaNorm: normLine(85, 'норма ДАТ 85', '#1d4ed8'),
+        }
+
   pressureChart = new Chart(pressureCanvas.value, {
     type: 'line',
-    data: {
-      datasets: [
-        {
-          label: 'Систолічний (САТ)',
-          data: data.map((e) => ({ x: eventMoment(e), y: e.payload.systolic })),
-          yAxisID: 'y',
-          borderColor: '#b91c1c',
-          backgroundColor: '#b91c1c',
-          tension: 0.25,
-        },
-        {
-          label: 'Діастолічний (ДАТ)',
-          data: data.map((e) => ({ x: eventMoment(e), y: e.payload.diastolic })),
-          yAxisID: 'y',
-          borderColor: '#1d4ed8',
-          backgroundColor: '#1d4ed8',
-          tension: 0.25,
-        },
-        ...overlays,
-      ],
-    },
+    data: { datasets: [...pressureDatasets, ...overlays] },
     options: baseOptions(
+      { ...pressureAnnotations, ...overlayAnnotations() },
       {
-        sysNorm: normLine(135, 'норма САТ 135', '#b91c1c'),
-        diaNorm: normLine(85, 'норма ДАТ 85', '#1d4ed8'),
-        ...overlayAnnotations(),
+        y: data.length > 0,
+        bpm: data.length > 0,
+        severity: overlays.some((d) => d.yAxisID === 'severity'),
+        kg: overlays.some((d) => d.yAxisID === 'kg'),
       },
-      overlays.some((d) => d.yAxisID === 'severity'),
-      overlays.some((d) => d.yAxisID === 'kg'),
     ),
-  })
-
-  if (data.length === 0 || !pulseCanvas.value) return
-  pulseChart = new Chart(pulseCanvas.value, {
-    type: 'line',
-    data: {
-      datasets: [
-        {
-          label: 'Пульс, уд./хв',
-          data: data.map((e) => ({ x: eventMoment(e), y: e.payload.pulse })),
-          borderColor: '#2f6b4f',
-          backgroundColor: '#2f6b4f',
-          tension: 0.25,
-        },
-      ],
-    },
-    options: baseOptions(overlayAnnotations(), false),
   })
 }
 
@@ -578,8 +536,6 @@ watch(
 )
 onBeforeUnmount(() => {
   pressureChart?.destroy()
-  pulseChart?.destroy()
-  weightChart?.destroy()
 })
 
 watch(memberId, load)
@@ -607,7 +563,7 @@ onMounted(async () => {
 
     <div class="card">
       <div class="toolbar" style="margin-bottom: 8px">
-        <strong>Тиск і пульс</strong>
+        <strong>Графіки</strong>
         <button
           v-for="p in [
             { d: 7, l: 'Тиждень' },
@@ -657,7 +613,7 @@ onMounted(async () => {
       </div>
 
       <div v-if="showCfg" class="cfg-panel">
-        <div v-for="t in OVERLAY_TYPES" :key="t.value" class="cfg-row">
+        <div v-for="t in PANEL_TYPES" :key="t.value" class="cfg-row">
           <span class="cfg-name">{{ t.icon }} {{ t.label }}</span>
           <input v-model="chartCfg.types[t.value].color" type="color" />
           <select v-model="chartCfg.types[t.value].style" :disabled="!t.severity && !t.kg">
@@ -671,7 +627,8 @@ onMounted(async () => {
         </div>
         <p class="muted" style="margin: 6px 0 0">
           Події без числового значення завжди відображаються маркером (лінія на моменті часу або
-          смуга на день). Зберігається автоматично.
+          смуга на день). «Тиск і пульс» має фіксований вигляд: САТ/ДАТ, пунктирний пульс і межі
+          норми. Зберігається автоматично.
         </p>
 
         <div class="toolbar" style="margin: 12px 0 4px">
@@ -690,18 +647,11 @@ onMounted(async () => {
       </div>
 
       <template v-if="hasChartData">
-        <div style="height: 320px"><canvas ref="pressureCanvas"></canvas></div>
-        <div v-if="pressureEvents.length" style="height: 200px; margin-top: 12px">
-          <canvas ref="pulseCanvas"></canvas>
-        </div>
+        <div style="height: 340px"><canvas ref="pressureCanvas"></canvas></div>
       </template>
       <p v-else class="muted" style="margin: 8px 0 0">
-        Немає даних за обраний період. Додайте замір тиску або ввімкніть типи подій вище.
+        Немає даних за обраний період — увімкніть типи подій вище або додайте події в календарі.
       </p>
-
-      <div v-if="weightWeekly.length" style="height: 190px; margin-top: 12px">
-        <canvas ref="weightCanvas"></canvas>
-      </div>
     </div>
 
     <!-- Модалка події -->
