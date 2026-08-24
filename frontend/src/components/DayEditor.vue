@@ -1,8 +1,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { api, MEAL_SLOTS, unitLabel } from '../api'
+import { useI18n } from 'vue-i18n'
+import { api, MEAL_SLOTS } from '../api'
 import IngredientAutocomplete from './IngredientAutocomplete.vue'
 import DishPicker from './DishPicker.vue'
+
+const { t } = useI18n()
 
 const props = defineProps({
   date: { type: String, required: true },
@@ -51,10 +54,30 @@ function sumOf(list) {
 const dayTotal = computed(() => sumOf(items.value))
 
 const targets = computed(() => [
-  { key: 'kcal', label: 'Калорії', unit: 'ккал', target: props.member.kcalTarget },
-  { key: 'protein', label: 'Білки', unit: 'г', target: props.member.proteinTarget },
-  { key: 'fat', label: 'Жири', unit: 'г', target: props.member.fatTarget },
-  { key: 'carbs', label: 'Вуглеводи', unit: 'г', target: props.member.carbsTarget },
+  {
+    key: 'kcal',
+    label: t('nutrients.kcal'),
+    unit: t('common.kcal'),
+    target: props.member.kcalTarget,
+  },
+  {
+    key: 'protein',
+    label: t('nutrients.protein'),
+    unit: t('common.grams'),
+    target: props.member.proteinTarget,
+  },
+  {
+    key: 'fat',
+    label: t('nutrients.fat'),
+    unit: t('common.grams'),
+    target: props.member.fatTarget,
+  },
+  {
+    key: 'carbs',
+    label: t('nutrients.carbs'),
+    unit: t('common.grams'),
+    target: props.member.carbsTarget,
+  },
 ])
 
 function productNutrition(ingredient, amount) {
@@ -146,7 +169,7 @@ function discardAndClose() {
 const entryName = (e) =>
   e.type === 'dish'
     ? e.dish.name
-    : `${e.ingredient.name} — ${e.amount} ${unitLabel(e.ingredient.unit)}`
+    : `${e.ingredient.name} — ${e.amount} ${t(`units.${e.ingredient.unit}`)}`
 
 onMounted(load)
 </script>
@@ -157,87 +180,95 @@ onMounted(load)
       <div class="editor-head">
         <h2>
           {{ member.name }} · {{ date }}
-          <span v-if="dirty" class="dirty-mark" title="Є незбережені зміни">●</span>
+          <span v-if="dirty" class="dirty-mark" :title="$t('dayEditor.unsaved')">●</span>
         </h2>
         <div style="display: flex; gap: 8px">
-          <button class="primary" :disabled="saving || !dirty" @click="save()">Зберегти</button>
-          <button @click="tryClose">Закрити</button>
+          <button class="primary" :disabled="saving || !dirty" @click="save()">
+            {{ $t('common.save') }}
+          </button>
+          <button @click="tryClose">{{ $t('common.close') }}</button>
         </div>
       </div>
 
       <div v-if="confirmClose" class="confirm-bar">
-        <span>Є незбережені зміни. Зберегти перед закриттям?</span>
+        <span>{{ $t('dayEditor.saveBeforeClose') }}</span>
         <span class="spacer" />
-        <button class="primary small" :disabled="saving" @click="save()">Зберегти</button>
-        <button class="small" @click="discardAndClose">Не зберігати</button>
-        <button class="small" @click="confirmClose = false">Скасувати</button>
+        <button class="primary small" :disabled="saving" @click="save()">
+          {{ $t('common.save') }}
+        </button>
+        <button class="small" @click="discardAndClose">{{ $t('dayEditor.dontSave') }}</button>
+        <button class="small" @click="confirmClose = false">{{ $t('common.cancel') }}</button>
       </div>
       <p v-if="error" class="error">{{ error }}</p>
 
       <div class="editor-body">
         <div class="slots">
-          <section v-for="slot in MEAL_SLOTS" :key="slot.value" class="slot card">
+          <section v-for="slot in MEAL_SLOTS" :key="slot" class="slot card">
             <div class="slot-head">
-              <strong>{{ slot.label }}</strong>
-              <span class="muted">{{ Math.round(sumOf(bySlot(slot.value)).kcal) }} ккал</span>
+              <strong>{{ $t(`slots.${slot}`) }}</strong>
+              <span class="muted"
+                >{{ Math.round(sumOf(bySlot(slot)).kcal) }} {{ $t('common.kcal') }}</span
+              >
             </div>
 
-            <div v-for="item in bySlot(slot.value)" :key="item.key" class="item">
+            <div v-for="item in bySlot(slot)" :key="item.key" class="item">
               <span class="item-name" :title="entryName(item)">{{ entryName(item) }}</span>
               <span v-if="item.nutrition" class="muted item-kcal"
-                >{{ Math.round(item.nutrition.kcal) }}&nbsp;ккал</span
+                >{{ Math.round(item.nutrition.kcal) }}&nbsp;{{ $t('common.kcal') }}</span
               >
               <button class="small danger" @click="removeItem(item)">✕</button>
             </div>
 
-            <div v-if="pending[slot.value]" class="pending">
-              <span class="item-name">{{ pending[slot.value].ingredient.name }}</span>
+            <div v-if="pending[slot]" class="pending">
+              <span class="item-name">{{ pending[slot].ingredient.name }}</span>
               <input
-                v-model.number="pending[slot.value].amount"
+                v-model.number="pending[slot].amount"
                 type="number"
                 min="1"
                 step="1"
-                :placeholder="unitLabel(pending[slot.value].ingredient.unit)"
+                :placeholder="$t(`units.${pending[slot].ingredient.unit}`)"
                 style="width: 90px"
                 autofocus
-                @keydown.enter="addPending(slot.value)"
+                @keydown.enter="addPending(slot)"
               />
-              <span class="muted">{{ unitLabel(pending[slot.value].ingredient.unit) }}</span>
-              <button class="small primary" @click="addPending(slot.value)">OK</button>
-              <button class="small" @click="delete pending[slot.value]">✕</button>
+              <span class="muted">{{ $t(`units.${pending[slot].ingredient.unit}`) }}</span>
+              <button class="small primary" @click="addPending(slot)">
+                {{ $t('common.ok') }}
+              </button>
+              <button class="small" @click="delete pending[slot]">✕</button>
             </div>
 
             <div v-else class="add-row">
-              <IngredientAutocomplete @select="(i) => pickProduct(slot.value, i)" />
-              <button class="small" @click="dishPickerSlot = slot.value">+ Страва</button>
+              <IngredientAutocomplete @select="(i) => pickProduct(slot, i)" />
+              <button class="small" @click="dishPickerSlot = slot">
+                {{ $t('dayEditor.addDish') }}
+              </button>
             </div>
           </section>
         </div>
 
         <aside class="totals card">
-          <strong>Підсумок дня</strong>
-          <div v-for="t in targets" :key="t.key" class="target">
+          <strong>{{ $t('dayEditor.dayTotal') }}</strong>
+          <div v-for="tgt in targets" :key="tgt.key" class="target">
             <div class="target-line">
-              <span>{{ t.label }}</span>
+              <span>{{ tgt.label }}</span>
               <span>
-                <strong :class="{ over: t.target && dayTotal[t.key] > t.target }">{{
-                  Math.round(dayTotal[t.key])
+                <strong :class="{ over: tgt.target && dayTotal[tgt.key] > tgt.target }">{{
+                  Math.round(dayTotal[tgt.key])
                 }}</strong>
-                <span v-if="t.target" class="muted"> / {{ t.target }} {{ t.unit }}</span>
-                <span v-else class="muted"> {{ t.unit }}</span>
+                <span v-if="tgt.target" class="muted"> / {{ tgt.target }} {{ tgt.unit }}</span>
+                <span v-else class="muted"> {{ tgt.unit }}</span>
               </span>
             </div>
-            <div v-if="t.target" class="bar">
+            <div v-if="tgt.target" class="bar">
               <div
                 class="bar-fill"
-                :class="{ over: dayTotal[t.key] > t.target }"
-                :style="{ width: Math.min((dayTotal[t.key] / t.target) * 100, 100) + '%' }"
+                :class="{ over: dayTotal[tgt.key] > tgt.target }"
+                :style="{ width: Math.min((dayTotal[tgt.key] / tgt.target) * 100, 100) + '%' }"
               />
             </div>
           </div>
-          <p class="muted hint">
-            Зміни зберігаються кнопкою «Зберегти» — одним запитом за весь день.
-          </p>
+          <p class="muted hint">{{ $t('dayEditor.hint') }}</p>
         </aside>
       </div>
     </div>

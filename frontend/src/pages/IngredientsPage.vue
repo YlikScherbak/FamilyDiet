@@ -1,7 +1,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { api, INGREDIENT_CATEGORIES, UNITS, categoryLabel, unitLabel } from '../api'
+import { useI18n } from 'vue-i18n'
+import { api, INGREDIENT_CATEGORIES, UNITS } from '../api'
 import { useIngredientsStore } from '../stores/ingredients'
+
+const { t } = useI18n()
 
 const store = useIngredientsStore()
 const search = ref('')
@@ -57,7 +60,7 @@ async function save() {
 }
 
 async function remove(item) {
-  if (!confirm(`Видалити «${item.name}»?`)) return
+  if (!confirm(t('ingredients.confirmDelete', { name: item.name }))) return
   try {
     await api.del(`/ingredients/${item.id}`)
     store.remove(item.id)
@@ -71,42 +74,43 @@ onMounted(() => store.loadAll())
 
 <template>
   <div>
-    <h1>Інгредієнти</h1>
+    <h1>{{ $t('ingredients.title') }}</h1>
     <div class="toolbar">
       <input
         v-model="search"
-        placeholder="Пошук (укр або англ, слова в будь-якому порядку)..."
+        :placeholder="$t('ingredients.searchPlaceholder')"
         style="width: 320px"
       />
       <select v-model="category">
-        <option value="">Всі категорії</option>
-        <option v-for="c in INGREDIENT_CATEGORIES" :key="c.value" :value="c.value">
-          {{ c.label }}
+        <option value="">{{ $t('common.allCategories') }}</option>
+        <option v-for="c in INGREDIENT_CATEGORIES" :key="c" :value="c">
+          {{ $t(`categories.${c}`) }}
         </option>
       </select>
       <span class="muted">
-        <template v-if="!store.loaded">завантаження довідника...</template>
+        <template v-if="!store.loaded">{{ $t('ingredients.loading') }}</template>
         <template v-else>
-          {{ items.length }} шт.<template v-if="items.length >= LIMIT">
-            (перші {{ LIMIT }} з {{ store.items.length }} — звузьте пошук)</template
+          {{ $t('common.count', { n: items.length })
+          }}<template v-if="items.length >= LIMIT">
+            {{ $t('ingredients.narrow', { limit: LIMIT, total: store.items.length }) }}</template
           >
         </template>
       </span>
       <span class="spacer" />
-      <button class="primary" @click="openCreate">+ Додати інгредієнт</button>
+      <button class="primary" @click="openCreate">{{ $t('ingredients.add') }}</button>
     </div>
 
     <table class="data">
       <thead>
         <tr>
-          <th>Назва</th>
-          <th>Категорія</th>
-          <th>Од.</th>
-          <th>Ккал/100</th>
-          <th>Б</th>
-          <th>Ж</th>
-          <th>В</th>
-          <th>Вага 1 шт</th>
+          <th>{{ $t('ingredients.name') }}</th>
+          <th>{{ $t('ingredients.category') }}</th>
+          <th>{{ $t('ingredients.unit') }}</th>
+          <th>{{ $t('ingredients.kcal100') }}</th>
+          <th>{{ $t('nutrients.p') }}</th>
+          <th>{{ $t('nutrients.f') }}</th>
+          <th>{{ $t('nutrients.c') }}</th>
+          <th>{{ $t('ingredients.pieceWeight') }}</th>
           <th></th>
         </tr>
       </thead>
@@ -117,16 +121,18 @@ onMounted(() => store.loadAll())
             <div v-if="item.nameEn" class="muted" style="font-size: 11.5px">{{ item.nameEn }}</div>
           </td>
           <td>
-            <span class="badge">{{ categoryLabel(item.category) }}</span>
+            <span class="badge">{{ $t(`categories.${item.category}`) }}</span>
           </td>
-          <td>{{ unitLabel(item.unit) }}</td>
+          <td>{{ $t(`units.${item.unit}`) }}</td>
           <td>{{ item.kcalPer100 }}</td>
           <td>{{ item.proteinPer100 }}</td>
           <td>{{ item.fatPer100 }}</td>
           <td>{{ item.carbsPer100 }}</td>
-          <td>{{ item.pieceWeightGrams ? item.pieceWeightGrams + ' г' : '—' }}</td>
+          <td>
+            {{ item.pieceWeightGrams ? item.pieceWeightGrams + ' ' + $t('common.grams') : '—' }}
+          </td>
           <td style="white-space: nowrap">
-            <button class="small" @click="openEdit(item)">Редагувати</button>
+            <button class="small" @click="openEdit(item)">{{ $t('common.edit') }}</button>
             <button class="small danger" @click="remove(item)">✕</button>
           </td>
         </tr>
@@ -135,51 +141,53 @@ onMounted(() => store.loadAll())
 
     <div v-if="showForm" class="modal-backdrop" @click.self="showForm = false">
       <div class="modal">
-        <h2 style="margin-top: 0">{{ form.id ? 'Редагувати інгредієнт' : 'Новий інгредієнт' }}</h2>
+        <h2 style="margin-top: 0">
+          {{ form.id ? $t('ingredients.editTitle') : $t('ingredients.newTitle') }}
+        </h2>
         <div class="form-grid">
           <div class="field full">
-            <label>Назва</label>
+            <label>{{ $t('ingredients.name') }}</label>
             <input v-model="form.name" />
           </div>
           <div class="field">
-            <label>Категорія</label>
+            <label>{{ $t('ingredients.category') }}</label>
             <select v-model="form.category">
-              <option v-for="c in INGREDIENT_CATEGORIES" :key="c.value" :value="c.value">
-                {{ c.label }}
+              <option v-for="c in INGREDIENT_CATEGORIES" :key="c" :value="c">
+                {{ $t(`categories.${c}`) }}
               </option>
             </select>
           </div>
           <div class="field">
-            <label>Одиниця виміру</label>
+            <label>{{ $t('ingredients.unitLabel') }}</label>
             <select v-model="form.unit">
-              <option v-for="u in UNITS" :key="u.value" :value="u.value">{{ u.label }}</option>
+              <option v-for="u in UNITS" :key="u" :value="u">{{ $t(`units.${u}`) }}</option>
             </select>
           </div>
           <div class="field">
-            <label>Ккал на 100 г</label>
+            <label>{{ $t('ingredients.kcalPer100') }}</label>
             <input v-model.number="form.kcalPer100" type="number" min="0" step="0.1" />
           </div>
           <div class="field">
-            <label>Білки на 100 г</label>
+            <label>{{ $t('ingredients.proteinPer100') }}</label>
             <input v-model.number="form.proteinPer100" type="number" min="0" step="0.1" />
           </div>
           <div class="field">
-            <label>Жири на 100 г</label>
+            <label>{{ $t('ingredients.fatPer100') }}</label>
             <input v-model.number="form.fatPer100" type="number" min="0" step="0.1" />
           </div>
           <div class="field">
-            <label>Вуглеводи на 100 г</label>
+            <label>{{ $t('ingredients.carbsPer100') }}</label>
             <input v-model.number="form.carbsPer100" type="number" min="0" step="0.1" />
           </div>
           <div v-if="form.unit === 'pcs'" class="field">
-            <label>Вага 1 шт, г</label>
+            <label>{{ $t('ingredients.pieceWeightGrams') }}</label>
             <input v-model.number="form.pieceWeightGrams" type="number" min="0" step="1" />
           </div>
         </div>
         <p v-if="error" class="error">{{ error }}</p>
         <div class="actions">
-          <button @click="showForm = false">Скасувати</button>
-          <button class="primary" :disabled="saving" @click="save">Зберегти</button>
+          <button @click="showForm = false">{{ $t('common.cancel') }}</button>
+          <button class="primary" :disabled="saving" @click="save">{{ $t('common.save') }}</button>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useIngredientsStore } from '../stores/ingredients'
 
 defineProps({
-  placeholder: { type: String, default: 'Пошук продукту...' },
+  placeholder: { type: String, default: '' },
 })
 const emit = defineEmits(['select'])
 
@@ -32,7 +32,7 @@ onMounted(() => store.loadAll())
   <div class="autocomplete">
     <input
       v-model="query"
-      :placeholder="placeholder"
+      :placeholder="placeholder || $t('ingredients.autocompletePlaceholder')"
       @input="open = true"
       @focus="open = true"
       @blur="closeSoon"
@@ -44,9 +44,9 @@ onMounted(() => store.loadAll())
           {{ item.name }}
           <span v-if="item.nameEn" class="muted en">{{ item.nameEn }}</span>
         </span>
-        <span class="muted meta">{{ item.kcalPer100 }} ккал/100</span>
+        <span class="muted meta">{{ item.kcalPer100 }} {{ $t('common.kcal') }}/100</span>
       </div>
-      <div v-if="results.length === 0" class="option muted">Нічого не знайдено</div>
+      <div v-if="results.length === 0" class="option muted">{{ $t('common.nothingFound') }}</div>
     </div>
   </div>
 </template>

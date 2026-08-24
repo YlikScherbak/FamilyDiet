@@ -1,16 +1,16 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { api, MEAL_SLOTS, unitLabel } from '../api'
+import { useI18n } from 'vue-i18n'
+import { api, MEAL_SLOTS } from '../api'
 import { useAppStore } from '../stores/app'
 import DayEditor from '../components/DayEditor.vue'
 
+const { t, locale } = useI18n()
 const app = useAppStore()
 const entries = ref([])
 const summaries = ref([])
 const weekStart = ref(mondayOf(new Date()))
 const editor = ref(null) // { date, member }
-
-const DAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд']
 
 function mondayOf(date) {
   const d = new Date(date)
@@ -28,9 +28,12 @@ const days = computed(() =>
   Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart.value)
     d.setDate(d.getDate() + i)
+    const weekday = d.toLocaleDateString(locale.value === 'uk' ? 'uk-UA' : 'en-GB', {
+      weekday: 'short',
+    })
     return {
       date: fmt(d),
-      label: `${DAY_LABELS[i]} ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: `${weekday} ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`,
     }
   }),
 )
@@ -64,12 +67,12 @@ const summaryFor = (date, memberId) =>
 const entryTitle = (e) =>
   e.type === 'dish'
     ? e.dish.name
-    : `${e.ingredient.name} — ${e.amount} ${unitLabel(e.ingredient.unit)}`
+    : `${e.ingredient.name} — ${e.amount} ${t(`units.${e.ingredient.unit}`)}`
 
 const entryShort = (e) =>
   e.type === 'dish'
     ? e.dish.name
-    : `${e.ingredient.name} ${e.amount}${unitLabel(e.ingredient.unit)}`
+    : `${e.ingredient.name} ${e.amount}${t(`units.${e.ingredient.unit}`)}`
 
 async function removeEntry(entry) {
   await api.del(`/meal-plan/entries/${entry.id}`)
@@ -83,7 +86,7 @@ function openEditor(date, member) {
 async function copyWeek() {
   const target = new Date(weekStart.value)
   target.setDate(target.getDate() + 7)
-  if (!confirm('Скопіювати всі страви цього тижня на наступний?')) return
+  if (!confirm(t('menu.confirmCopy'))) return
   await api.post('/meal-plan/copy', {
     sourceFrom: days.value[0].date,
     sourceTo: days.value[6].date,
@@ -100,15 +103,15 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Календар меню</h1>
+    <h1>{{ $t('menu.title') }}</h1>
     <div class="toolbar">
-      <button @click="shiftWeek(-1)">‹ Попередній</button>
-      <button @click="goToday">Сьогодні</button>
-      <button @click="shiftWeek(1)">Наступний ›</button>
+      <button @click="shiftWeek(-1)">{{ $t('menu.prev') }}</button>
+      <button @click="goToday">{{ $t('menu.today') }}</button>
+      <button @click="shiftWeek(1)">{{ $t('menu.next') }}</button>
       <strong style="margin-left: 8px">{{ days[0].date }} — {{ days[6].date }}</strong>
       <span class="spacer" />
-      <span class="muted">Клік по клітинці — редактор дня</span>
-      <button @click="copyWeek">⧉ Копіювати тиждень →</button>
+      <span class="muted">{{ $t('menu.clickHint') }}</span>
+      <button @click="copyWeek">{{ $t('menu.copyWeek') }}</button>
     </div>
 
     <div style="overflow-x: auto">
@@ -123,10 +126,10 @@ onMounted(async () => {
           </tr>
         </thead>
         <tbody>
-          <template v-for="slot in MEAL_SLOTS" :key="slot.value">
+          <template v-for="slot in MEAL_SLOTS" :key="slot">
             <tr v-for="(member, mi) in app.members" :key="member.id">
               <th v-if="mi === 0" :rowspan="app.members.length" class="slot-label">
-                {{ slot.label }}
+                {{ $t(`slots.${slot}`) }}
               </th>
               <td class="muted member-label">{{ member.name }}</td>
               <td
@@ -137,7 +140,7 @@ onMounted(async () => {
                 @click.self="openEditor(day.date, member)"
               >
                 <div
-                  v-for="entry in cellEntries(day.date, member.id, slot.value)"
+                  v-for="entry in cellEntries(day.date, member.id, slot)"
                   :key="entry.id"
                   class="entry"
                   :title="entryTitle(entry)"
@@ -146,7 +149,7 @@ onMounted(async () => {
                     entryShort(entry)
                   }}</span>
                   <span v-if="entry.nutrition" class="muted entry-kcal"
-                    >{{ Math.round(entry.nutrition.kcal) }}&nbsp;ккал</span
+                    >{{ Math.round(entry.nutrition.kcal) }}&nbsp;{{ $t('common.kcal') }}</span
                   >
                   <button class="small danger" @click.stop="removeEntry(entry)">✕</button>
                 </div>
@@ -160,7 +163,7 @@ onMounted(async () => {
               :rowspan="app.members.length"
               class="slot-label"
             >
-              Разом
+              {{ $t('menu.total') }}
             </th>
             <td class="muted member-label">{{ member.name }}</td>
             <td v-for="day in days" :key="day.date" :class="{ today: day.date === today }">
@@ -170,9 +173,10 @@ onMounted(async () => {
                 </strong>
                 <span class="muted"> / {{ member.kcalTarget }}</span>
                 <div class="muted macro">
-                  Б {{ Math.round(summaryFor(day.date, member.id).protein) }} · Ж
-                  {{ Math.round(summaryFor(day.date, member.id).fat) }} · В
-                  {{ Math.round(summaryFor(day.date, member.id).carbs) }}
+                  {{ $t('nutrients.p') }}
+                  {{ Math.round(summaryFor(day.date, member.id).protein) }} ·
+                  {{ $t('nutrients.f') }} {{ Math.round(summaryFor(day.date, member.id).fat) }} ·
+                  {{ $t('nutrients.c') }} {{ Math.round(summaryFor(day.date, member.id).carbs) }}
                 </div>
               </template>
             </td>

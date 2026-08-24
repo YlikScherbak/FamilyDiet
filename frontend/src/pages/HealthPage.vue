@@ -8,10 +8,13 @@ import { Chart } from 'chart.js/auto'
 import annotationPlugin from 'chartjs-plugin-annotation'
 import 'chartjs-adapter-date-fns'
 import { uk } from 'date-fns/locale'
+import { useI18n } from 'vue-i18n'
 import { api, HEALTH_EVENT_TYPES, healthType } from '../api'
 import { useAppStore } from '../stores/app'
 
 Chart.register(annotationPlugin)
+
+const { t, locale } = useI18n()
 
 const app = useAppStore()
 const memberId = ref(null)
@@ -119,19 +122,19 @@ async function removeEvent() {
 // --- Календар -----------------------------------------------------------------
 
 function eventTitle(e) {
-  const t = healthType(e.type)
+  const ht = healthType(e.type)
   if (e.type === 'pressure')
-    return `${t.icon} ${e.payload.systolic}/${e.payload.diastolic} · ${e.payload.pulse}`
-  if (e.type === 'weight') return `${t.icon} ${e.payload.kg} кг`
-  if (e.type === 'custom') return `${t.icon} ${e.payload.title}`
+    return `${ht.icon} ${e.payload.systolic}/${e.payload.diastolic} · ${e.payload.pulse}`
+  if (e.type === 'weight') return `${ht.icon} ${e.payload.kg} ${t('health.kg')}`
+  if (e.type === 'custom') return `${ht.icon} ${e.payload.title}`
   const severity = e.payload.severity ? ` (${e.payload.severity}/5)` : ''
-  return `${t.icon} ${t.label}${severity}`
+  return `${ht.icon} ${t(`healthTypes.${e.type}`)}${severity}`
 }
 
 const calendarOptions = computed(() => ({
   plugins: [dayGridPlugin, interactionPlugin],
   initialView: 'dayGridMonth',
-  locale: ukLocale,
+  locale: locale.value === 'uk' ? ukLocale : 'en',
   firstDay: 1,
   height: 'auto',
   fixedWeekCount: false,
@@ -221,14 +224,14 @@ function toggleType(type) {
 
 // --- Пресети графіка: іменовані комбінації накладень, зберігаються в БД ---------
 
-const DEFAULT_PRESETS = [
+const defaultPresets = () => [
   {
-    name: 'Тиск і мігрені',
+    name: t('health.presetPressureMigraines'),
     enabled: ['pressure', 'migraine', 'headache', 'medication'],
     types: null,
   },
-  { name: 'Вага і тиск', enabled: ['pressure', 'weight'], types: null },
-  { name: 'Болі та ліки', enabled: ['migraine', 'headache', 'medication'], types: null },
+  { name: t('health.presetWeightPressure'), enabled: ['pressure', 'weight'], types: null },
+  { name: t('health.presetPains'), enabled: ['migraine', 'headache', 'medication'], types: null },
 ]
 
 const presets = ref([])
@@ -238,9 +241,9 @@ async function loadPresets() {
   try {
     const saved = await api.get('/settings/health_chart_presets')
     presets.value =
-      Array.isArray(saved.presets) && saved.presets.length ? saved.presets : DEFAULT_PRESETS
+      Array.isArray(saved.presets) && saved.presets.length ? saved.presets : defaultPresets()
   } catch {
-    presets.value = DEFAULT_PRESETS
+    presets.value = defaultPresets()
   }
 }
 
@@ -297,7 +300,7 @@ function baseOptions(annotations, axes = {}) {
   const scales = {
     x: {
       type: 'time',
-      adapters: { date: { locale: uk } },
+      adapters: { date: { locale: locale.value === 'uk' ? uk : undefined } },
       time: {
         tooltipFormat: 'dd.MM HH:mm',
         minUnit: 'hour',
@@ -314,21 +317,21 @@ function baseOptions(annotations, axes = {}) {
       min: 0,
       max: 5,
       grid: { drawOnChartArea: false },
-      title: { display: true, text: 'Тяжкість, 1–5' },
+      title: { display: true, text: t('health.severityAxis') },
     }
   }
   if (axes.kg) {
     scales.kg = {
       position: 'right',
       grid: { drawOnChartArea: false },
-      title: { display: true, text: 'кг' },
+      title: { display: true, text: t('health.kg') },
     }
   }
   if (axes.bpm) {
     scales.bpm = {
       position: 'right',
       grid: { drawOnChartArea: false },
-      title: { display: true, text: 'Пульс, уд./хв' },
+      title: { display: true, text: t('health.bpmAxis') },
     }
   }
 
@@ -347,10 +350,10 @@ function baseOptions(annotations, axes = {}) {
               return `${base}/5${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
             }
             if (ctx.dataset.yAxisID === 'kg') {
-              return `${base} кг${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
+              return `${base} ${t('health.kg')}${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
             }
             if (ctx.dataset.yAxisID === 'bpm') {
-              return `${base} уд./хв`
+              return `${base} ${t('health.bpm')}`
             }
             return base
           },
@@ -370,25 +373,25 @@ function overlayDatasets() {
   for (const type of chartCfg.enabled) {
     if (type === 'pressure') continue // малюється окремо: САТ/ДАТ + пульс
     const cfg = chartCfg.types[type]
-    const t = healthType(type)
+    const ht = healthType(type)
     if (!cfg || cfg.style === 'marker') continue
     const points = overlayEvents.value
-      .filter((e) => e.type === type && (t.kg ? e.payload.kg != null : e.payload.severity != null))
+      .filter((e) => e.type === type && (ht.kg ? e.payload.kg != null : e.payload.severity != null))
       .map((e) => ({
         x: eventMoment(e),
-        y: t.kg ? e.payload.kg : e.payload.severity,
+        y: ht.kg ? e.payload.kg : e.payload.severity,
         note: e.note,
       }))
     if (points.length === 0) continue
     datasets.push({
       type: cfg.style === 'bar' ? 'bar' : cfg.style === 'line' ? 'line' : 'scatter',
-      label: `${t.icon} ${t.label}`,
+      label: `${ht.icon} ${t(`healthTypes.${type}`)}`,
       data: points,
-      yAxisID: t.kg ? 'kg' : 'severity',
+      yAxisID: ht.kg ? 'kg' : 'severity',
       borderColor: cfg.color,
       backgroundColor: cfg.style === 'bar' ? cfg.color + '99' : cfg.color,
-      pointStyle: t.kg ? 'circle' : 'rectRot',
-      pointRadius: t.kg ? 3.5 : 6,
+      pointStyle: ht.kg ? 'circle' : 'rectRot',
+      pointRadius: ht.kg ? 3.5 : 6,
       barThickness: 10,
       tension: 0.25,
       spanGaps: true,
@@ -405,8 +408,8 @@ function overlayAnnotations() {
   for (const e of overlayEvents.value) {
     if (e.type === 'pressure') continue
     const cfg = chartCfg.types[e.type]
-    const t = healthType(e.type)
-    const hasValue = t.kg ? e.payload.kg != null : t.severity ? e.payload.severity != null : false
+    const ht = healthType(e.type)
+    const hasValue = ht.kg ? e.payload.kg != null : ht.severity ? e.payload.severity != null : false
     const asMarker = !cfg || cfg.style === 'marker' || !hasValue
     if (!asMarker) continue
     const valueText = e.payload.severity
@@ -416,7 +419,7 @@ function overlayAnnotations() {
         : ''
     const label = {
       display: true,
-      content: `${t.icon}${valueText}`,
+      content: `${ht.icon}${valueText}`,
       position: 'end',
       backgroundColor: cfg.color,
       font: { size: 10 },
@@ -476,7 +479,7 @@ function renderCharts() {
       ? []
       : [
           {
-            label: 'Систолічний (САТ)',
+            label: t('health.sbp'),
             data: data.map((e) => ({ x: eventMoment(e), y: e.payload.systolic })),
             yAxisID: 'y',
             borderColor: '#b91c1c',
@@ -484,7 +487,7 @@ function renderCharts() {
             tension: 0.25,
           },
           {
-            label: 'Діастолічний (ДАТ)',
+            label: t('health.dbp'),
             data: data.map((e) => ({ x: eventMoment(e), y: e.payload.diastolic })),
             yAxisID: 'y',
             borderColor: '#1d4ed8',
@@ -492,7 +495,7 @@ function renderCharts() {
             tension: 0.25,
           },
           {
-            label: 'Пульс',
+            label: t('health.pulse'),
             data: data.map((e) => ({ x: eventMoment(e), y: e.payload.pulse })),
             yAxisID: 'bpm',
             borderColor: '#2f6b4f',
@@ -506,8 +509,8 @@ function renderCharts() {
     data.length === 0
       ? {}
       : {
-          sysNorm: normLine(135, 'норма САТ 135', '#b91c1c'),
-          diaNorm: normLine(85, 'норма ДАТ 85', '#1d4ed8'),
+          sysNorm: normLine(135, t('health.sbpNorm'), '#b91c1c'),
+          diaNorm: normLine(85, t('health.dbpNorm'), '#1d4ed8'),
         }
 
   pressureChart = new Chart(pressureCanvas.value, {
@@ -539,6 +542,7 @@ onBeforeUnmount(() => {
 })
 
 watch(memberId, load)
+watch(locale, () => nextTick(renderCharts))
 
 onMounted(async () => {
   await Promise.all([app.loadMembers(), loadChartCfg(), loadPresets()])
@@ -548,13 +552,13 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Здоров'я</h1>
+    <h1>{{ $t('health.title') }}</h1>
 
     <div class="toolbar">
       <select v-model.number="memberId">
         <option v-for="m in app.members" :key="m.id" :value="m.id">{{ m.name }}</option>
       </select>
-      <span class="muted">Клік по дню — додати подію, по події — редагувати.</span>
+      <span class="muted">{{ $t('health.hint') }}</span>
     </div>
 
     <div class="card" style="margin-bottom: 16px">
@@ -563,13 +567,13 @@ onMounted(async () => {
 
     <div class="card">
       <div class="toolbar" style="margin-bottom: 8px">
-        <strong>Графіки</strong>
+        <strong>{{ $t('health.charts') }}</strong>
         <button
           v-for="p in [
-            { d: 7, l: 'Тиждень' },
-            { d: 30, l: 'Місяць' },
-            { d: 90, l: '3 місяці' },
-            { d: 0, l: 'Все' },
+            { d: 7, l: $t('health.week') },
+            { d: 30, l: $t('health.month') },
+            { d: 90, l: $t('health.threeMonths') },
+            { d: 0, l: $t('health.all') },
           ]"
           :key="p.d"
           class="small"
@@ -584,7 +588,7 @@ onMounted(async () => {
       </div>
 
       <div v-if="presets.length" class="toolbar" style="margin-bottom: 8px">
-        <span class="muted">Пресети:</span>
+        <span class="muted">{{ $t('health.presets') }}</span>
         <button
           v-for="p in presets"
           :key="p.name"
@@ -597,50 +601,50 @@ onMounted(async () => {
       </div>
 
       <div class="toolbar" style="margin-bottom: 8px">
-        <span class="muted">Накласти на графік:</span>
+        <span class="muted">{{ $t('health.overlay') }}</span>
         <button
-          v-for="t in OVERLAY_TYPES"
-          :key="t.value"
+          v-for="ht in OVERLAY_TYPES"
+          :key="ht.value"
           class="small"
-          :class="{ primary: chartCfg.enabled.includes(t.value) }"
-          @click="toggleType(t.value)"
+          :class="{ primary: chartCfg.enabled.includes(ht.value) }"
+          @click="toggleType(ht.value)"
         >
-          {{ t.icon }} {{ t.label }}
+          {{ ht.icon }} {{ $t(`healthTypes.${ht.value}`) }}
         </button>
         <button class="small" style="margin-left: auto" @click="showCfg = !showCfg">
-          ⚙ Вигляд
+          {{ $t('health.view') }}
         </button>
       </div>
 
       <div v-if="showCfg" class="cfg-panel">
-        <div v-for="t in PANEL_TYPES" :key="t.value" class="cfg-row">
-          <span class="cfg-name">{{ t.icon }} {{ t.label }}</span>
-          <input v-model="chartCfg.types[t.value].color" type="color" />
-          <select v-model="chartCfg.types[t.value].style" :disabled="!t.severity && !t.kg">
-            <option value="marker">маркер</option>
-            <template v-if="t.severity || t.kg">
-              <option value="point">точка</option>
-              <option value="bar">стовпчик</option>
-              <option value="line">лінія</option>
+        <div v-for="ht in PANEL_TYPES" :key="ht.value" class="cfg-row">
+          <span class="cfg-name">{{ ht.icon }} {{ $t(`healthTypes.${ht.value}`) }}</span>
+          <input v-model="chartCfg.types[ht.value].color" type="color" />
+          <select v-model="chartCfg.types[ht.value].style" :disabled="!ht.severity && !ht.kg">
+            <option value="marker">{{ $t('health.styleMarker') }}</option>
+            <template v-if="ht.severity || ht.kg">
+              <option value="point">{{ $t('health.stylePoint') }}</option>
+              <option value="bar">{{ $t('health.styleBar') }}</option>
+              <option value="line">{{ $t('health.styleLine') }}</option>
             </template>
           </select>
         </div>
-        <p class="muted" style="margin: 6px 0 0">
-          Події без числового значення завжди відображаються маркером (лінія на моменті часу або
-          смуга на день). «Тиск і пульс» має фіксований вигляд: САТ/ДАТ, пунктирний пульс і межі
-          норми. Зберігається автоматично.
-        </p>
+        <p class="muted" style="margin: 6px 0 0">{{ $t('health.markerNote') }}</p>
 
         <div class="toolbar" style="margin: 12px 0 4px">
-          <input v-model="newPresetName" placeholder="Назва пресета" style="width: 220px" />
+          <input
+            v-model="newPresetName"
+            :placeholder="$t('health.presetNamePlaceholder')"
+            style="width: 220px"
+          />
           <button class="small" :disabled="!newPresetName.trim()" @click="saveCurrentAsPreset">
-            💾 Зберегти поточний як пресет
+            {{ $t('health.savePreset') }}
           </button>
         </div>
         <div v-for="p in presets" :key="'m' + p.name" class="cfg-row">
           <span class="cfg-name">{{ p.name }}</span>
           <span class="muted" style="flex: 1; font-size: 12.5px">
-            {{ p.enabled.map((v) => healthType(v)?.icon).join(' ') || 'без накладень' }}
+            {{ p.enabled.map((v) => healthType(v)?.icon).join(' ') || $t('health.noOverlays') }}
           </span>
           <button class="small danger" @click="removePreset(p)">✕</button>
         </div>
@@ -649,20 +653,20 @@ onMounted(async () => {
       <template v-if="hasChartData">
         <div style="height: 340px"><canvas ref="pressureCanvas"></canvas></div>
       </template>
-      <p v-else class="muted" style="margin: 8px 0 0">
-        Немає даних за обраний період — увімкніть типи подій вище або додайте події в календарі.
-      </p>
+      <p v-else class="muted" style="margin: 8px 0 0">{{ $t('health.noData') }}</p>
     </div>
 
     <!-- Модалка події -->
     <div v-if="modal.open" class="overlay" @click.self="modal.open = false">
       <div class="dialog">
-        <h2 style="margin-top: 0">{{ modal.id ? 'Подія' : 'Нова подія' }} · {{ form.date }}</h2>
+        <h2 style="margin-top: 0">
+          {{ modal.id ? $t('health.event') : $t('health.newEvent') }} · {{ form.date }}
+        </h2>
 
         <div class="toolbar">
           <select v-model="form.type" :disabled="!!modal.id">
-            <option v-for="t in HEALTH_EVENT_TYPES" :key="t.value" :value="t.value">
-              {{ t.icon }} {{ t.label }}
+            <option v-for="ht in HEALTH_EVENT_TYPES" :key="ht.value" :value="ht.value">
+              {{ ht.icon }} {{ $t(`healthTypes.${ht.value}`) }}
             </option>
           </select>
           <input v-model="form.time" type="time" />
@@ -672,19 +676,19 @@ onMounted(async () => {
           <input
             v-model.number="form.systolic"
             type="number"
-            placeholder="САТ (верхній)"
+            :placeholder="$t('health.systolic')"
             style="width: 130px"
           />
           <input
             v-model.number="form.diastolic"
             type="number"
-            placeholder="ДАТ (нижній)"
+            :placeholder="$t('health.diastolic')"
             style="width: 130px"
           />
           <input
             v-model.number="form.pulse"
             type="number"
-            placeholder="Пульс"
+            :placeholder="$t('health.pulse')"
             style="width: 100px"
           />
         </div>
@@ -696,13 +700,13 @@ onMounted(async () => {
             step="0.1"
             min="20"
             max="400"
-            placeholder="Вага, кг"
+            :placeholder="$t('health.weightKg')"
             style="width: 130px"
           />
         </div>
 
         <div v-if="formType?.severity" class="toolbar">
-          <label class="muted">Тяжкість:</label>
+          <label class="muted">{{ $t('health.severity') }}</label>
           <select v-model.number="form.severity">
             <option :value="null">—</option>
             <option v-for="n in 5" :key="n" :value="n">{{ n }} / 5</option>
@@ -710,23 +714,27 @@ onMounted(async () => {
         </div>
 
         <div v-if="formType?.custom" class="toolbar">
-          <input v-model="form.title" placeholder="Назва події" style="flex: 1" />
+          <input
+            v-model="form.title"
+            :placeholder="$t('health.customTitlePlaceholder')"
+            style="flex: 1"
+          />
         </div>
 
         <textarea
           v-model="form.note"
           rows="3"
-          placeholder="Опис (необов'язково)"
+          :placeholder="$t('health.notePlaceholder')"
           style="width: 100%; margin-bottom: 12px"
         ></textarea>
 
         <p v-if="error" class="error">{{ error }}</p>
 
         <div class="toolbar" style="margin-bottom: 0">
-          <button class="primary" @click="saveEvent">Зберегти</button>
-          <button @click="modal.open = false">Закрити</button>
+          <button class="primary" @click="saveEvent">{{ $t('common.save') }}</button>
+          <button @click="modal.open = false">{{ $t('common.close') }}</button>
           <button v-if="modal.id" class="danger" style="margin-left: auto" @click="removeEvent">
-            Видалити
+            {{ $t('common.delete') }}
           </button>
         </div>
       </div>

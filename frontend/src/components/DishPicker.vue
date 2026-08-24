@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { api, MEAL_SLOTS, slotLabel } from '../api'
+import { api, MEAL_SLOTS } from '../api'
 
 const props = defineProps({
   defaultCategory: { type: String, default: '' },
@@ -25,12 +25,12 @@ onMounted(load)
 <template>
   <div class="modal-backdrop" @click.self="emit('close')">
     <div class="modal">
-      <h2 style="margin-top: 0">Оберіть страву</h2>
+      <h2 style="margin-top: 0">{{ $t('dishes.pick') }}</h2>
       <div class="toolbar">
-        <input v-model="search" placeholder="Пошук..." style="flex: 1" autofocus />
+        <input v-model="search" :placeholder="$t('dishes.pickSearch')" style="flex: 1" autofocus />
         <select v-model="category">
-          <option value="">Всі категорії</option>
-          <option v-for="s in MEAL_SLOTS" :key="s.value" :value="s.value">{{ s.label }}</option>
+          <option value="">{{ $t('common.allCategories') }}</option>
+          <option v-for="s in MEAL_SLOTS" :key="s" :value="s">{{ $t(`slots.${s}`) }}</option>
         </select>
       </div>
       <table class="data">
@@ -44,16 +44,16 @@ onMounted(load)
             <td class="muted" style="width: 50px">{{ dish.code ?? '' }}</td>
             <td>{{ dish.name }}</td>
             <td style="width: 110px">
-              <span class="badge">{{ slotLabel(dish.category) }}</span>
+              <span class="badge">{{ $t(`slots.${dish.category}`) }}</span>
             </td>
           </tr>
           <tr v-if="items.length === 0">
-            <td class="muted">Нічого не знайдено</td>
+            <td class="muted">{{ $t('common.nothingFound') }}</td>
           </tr>
         </tbody>
       </table>
       <div class="actions">
-        <button @click="emit('close')">Закрити</button>
+        <button @click="emit('close')">{{ $t('common.close') }}</button>
       </div>
     </div>
   </div>

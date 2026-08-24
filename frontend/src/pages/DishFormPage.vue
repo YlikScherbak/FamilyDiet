@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, MEAL_SLOTS, unitLabel } from '../api'
+import { api, MEAL_SLOTS } from '../api'
 import { useAppStore } from '../stores/app'
 import IngredientAutocomplete from '../components/IngredientAutocomplete.vue'
 
@@ -120,36 +120,36 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>{{ dishId ? 'Редагувати страву' : 'Нова страва' }}</h1>
+    <h1>{{ dishId ? $t('dishForm.editTitle') : $t('dishForm.newTitle') }}</h1>
 
     <div class="card" style="margin-bottom: 16px">
       <div class="form-grid">
         <div class="field full">
-          <label>Назва</label>
-          <input v-model="form.name" placeholder="Наприклад: Вівсянка з ягодами" />
+          <label>{{ $t('dishForm.name') }}</label>
+          <input v-model="form.name" :placeholder="$t('dishForm.namePlaceholder')" />
         </div>
         <div class="field">
-          <label>Код (опційно)</label>
+          <label>{{ $t('dishForm.code') }}</label>
           <input v-model="form.code" placeholder="B01" />
         </div>
         <div class="field">
-          <label>Категорія</label>
+          <label>{{ $t('dishForm.category') }}</label>
           <select v-model="form.category">
-            <option v-for="s in MEAL_SLOTS" :key="s.value" :value="s.value">{{ s.label }}</option>
+            <option v-for="s in MEAL_SLOTS" :key="s" :value="s">{{ $t(`slots.${s}`) }}</option>
           </select>
         </div>
         <div class="field full">
-          <label>Рецепт</label>
+          <label>{{ $t('dishForm.recipe') }}</label>
           <textarea v-model="form.recipe" rows="3" />
         </div>
         <div class="field">
-          <label>YouTube відео (опційно)</label>
+          <label>{{ $t('dishForm.youtube') }}</label>
           <input v-model="form.youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." />
         </div>
         <div class="field" style="justify-content: flex-end">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer">
             <input v-model="form.batchCooking" type="checkbox" style="width: auto" />
-            Підходить для заготівлі (batch cooking)
+            {{ $t('dishForm.batchCooking') }}
           </label>
         </div>
       </div>
@@ -170,10 +170,12 @@ onMounted(async () => {
     >
       <div v-for="member in app.members" :key="member.id" class="card">
         <div class="toolbar" style="margin-bottom: 10px">
-          <strong>Порція: {{ member.name }}</strong>
+          <strong>{{ $t('dishForm.portionFor', { name: member.name }) }}</strong>
           <span class="badge">
-            {{ nutritionFor(member.id).kcal }} ккал · Б {{ nutritionFor(member.id).protein }} · Ж
-            {{ nutritionFor(member.id).fat }} · В {{ nutritionFor(member.id).carbs }}
+            {{ nutritionFor(member.id).kcal }} {{ $t('common.kcal') }} · {{ $t('nutrients.p') }}
+            {{ nutritionFor(member.id).protein }} · {{ $t('nutrients.f') }}
+            {{ nutritionFor(member.id).fat }} · {{ $t('nutrients.c') }}
+            {{ nutritionFor(member.id).carbs }}
           </span>
           <span class="spacer" />
           <button
@@ -182,15 +184,15 @@ onMounted(async () => {
             class="small"
             @click="copyPortion(other.id, member.id)"
           >
-            ⤺ Копіювати з «{{ other.name }}»
+            {{ $t('dishForm.copyFrom', { name: other.name }) }}
           </button>
         </div>
 
         <table class="data">
           <thead>
             <tr>
-              <th>Інгредієнт</th>
-              <th style="width: 140px">Кількість</th>
+              <th>{{ $t('dishForm.ingredient') }}</th>
+              <th style="width: 140px">{{ $t('dishForm.amount') }}</th>
               <th style="width: 40px"></th>
             </tr>
           </thead>
@@ -209,7 +211,9 @@ onMounted(async () => {
                     style="width: 80px"
                   />
                   <span class="muted">{{
-                    unitLabel(ingredientCache[row.ingredientId]?.unit)
+                    ingredientCache[row.ingredientId]
+                      ? $t(`units.${ingredientCache[row.ingredientId].unit}`)
+                      : ''
                   }}</span>
                 </div>
               </td>
@@ -219,7 +223,7 @@ onMounted(async () => {
         </table>
         <div style="display: flex; gap: 8px; margin-top: 10px">
           <IngredientAutocomplete
-            placeholder="Додати інгредієнт..."
+            :placeholder="$t('dishForm.addIngredient')"
             @select="(i) => addIngredient(member.id, i)"
           />
         </div>
@@ -228,8 +232,12 @@ onMounted(async () => {
 
     <p v-if="state.error" class="error">{{ state.error }}</p>
     <div class="actions" style="justify-content: flex-start">
-      <button class="primary" :disabled="state.saving || !form.name" @click="save">Зберегти</button>
-      <RouterLink to="/dishes"><button>Скасувати</button></RouterLink>
+      <button class="primary" :disabled="state.saving || !form.name" @click="save">
+        {{ $t('common.save') }}
+      </button>
+      <RouterLink to="/dishes"
+        ><button>{{ $t('common.cancel') }}</button></RouterLink
+      >
     </div>
   </div>
 </template>

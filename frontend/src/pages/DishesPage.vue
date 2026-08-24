@@ -1,7 +1,10 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { api, MEAL_SLOTS, slotLabel } from '../api'
+import { useI18n } from 'vue-i18n'
+import { api, MEAL_SLOTS } from '../api'
 import { useAppStore } from '../stores/app'
+
+const { t } = useI18n()
 
 const app = useAppStore()
 const items = ref([])
@@ -16,7 +19,7 @@ async function load() {
 }
 
 async function remove(item) {
-  if (!confirm(`Видалити страву «${item.name}»?`)) return
+  if (!confirm(t('dishes.confirmDelete', { name: item.name }))) return
   try {
     await api.del(`/dishes/${item.id}`)
     await load()
@@ -33,31 +36,33 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Страви</h1>
+    <h1>{{ $t('dishes.title') }}</h1>
     <div class="toolbar">
       <input
         v-model="search"
-        placeholder="Пошук за назвою або кодом..."
+        :placeholder="$t('dishes.searchPlaceholder')"
         style="width: 280px"
         @input="load"
       />
       <select v-model="category" @change="load">
-        <option value="">Всі категорії</option>
-        <option v-for="s in MEAL_SLOTS" :key="s.value" :value="s.value">{{ s.label }}</option>
+        <option value="">{{ $t('common.allCategories') }}</option>
+        <option v-for="s in MEAL_SLOTS" :key="s" :value="s">{{ $t(`slots.${s}`) }}</option>
       </select>
-      <span class="muted">{{ items.length }} шт.</span>
+      <span class="muted">{{ $t('common.count', { n: items.length }) }}</span>
       <span class="spacer" />
-      <RouterLink to="/dishes/new"><button class="primary">+ Додати страву</button></RouterLink>
+      <RouterLink to="/dishes/new"
+        ><button class="primary">{{ $t('dishes.add') }}</button></RouterLink
+      >
     </div>
 
     <table class="data">
       <thead>
         <tr>
-          <th>Код</th>
-          <th>Назва</th>
-          <th>Категорія</th>
-          <th v-for="m in app.members" :key="m.id">Ккал ({{ m.name }})</th>
-          <th>Заготівля</th>
+          <th>{{ $t('dishes.code') }}</th>
+          <th>{{ $t('dishes.name') }}</th>
+          <th>{{ $t('dishes.category') }}</th>
+          <th v-for="m in app.members" :key="m.id">{{ $t('dishes.kcalFor', { name: m.name }) }}</th>
+          <th>{{ $t('dishes.batch') }}</th>
           <th></th>
         </tr>
       </thead>
@@ -68,13 +73,13 @@ onMounted(load)
             <RouterLink :to="`/dishes/${item.id}`">{{ item.name }}</RouterLink>
           </td>
           <td>
-            <span class="badge">{{ slotLabel(item.category) }}</span>
+            <span class="badge">{{ $t(`slots.${item.category}`) }}</span>
           </td>
           <td v-for="m in app.members" :key="m.id">{{ kcalOf(item, m.id) }}</td>
           <td>{{ item.batchCooking ? '✔' : '' }}</td>
           <td style="white-space: nowrap">
             <RouterLink :to="`/dishes/${item.id}`"
-              ><button class="small">Редагувати</button></RouterLink
+              ><button class="small">{{ $t('common.edit') }}</button></RouterLink
             >
             <button class="small danger" @click="remove(item)">✕</button>
           </td>
