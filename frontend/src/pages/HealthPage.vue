@@ -4,15 +4,10 @@ import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import ukLocale from '@fullcalendar/core/locales/uk'
-import { Chart } from 'chart.js/auto'
-import annotationPlugin from 'chartjs-plugin-annotation'
-import 'chartjs-adapter-date-fns'
-import { uk } from 'date-fns/locale'
 import { useI18n } from 'vue-i18n'
 import { api, HEALTH_EVENT_TYPES, healthType } from '../api'
 import { useAppStore } from '../stores/app'
-
-Chart.register(annotationPlugin)
+import { Chart, buildHealthChart, defaultStyle } from '../health/chart'
 
 const { t, locale } = useI18n()
 
@@ -173,17 +168,12 @@ applyPreset(30)
 
 const inRange = (e) => (!range.from || e.date >= range.from) && (!range.to || e.date <= range.to)
 
-const pressureEvents = computed(() =>
-  events.value.filter((e) => e.type === 'pressure' && inRange(e)),
-)
-
 // --- Накладені типи подій і їх налаштування (зберігаються в БД) -----------------
 // Тиск — такий самий перемикач, як і решта, лише з фіксованим виглядом
 // (САТ/ДАТ/пульс + межі норми), тому в панелі стилів його немає.
 
 const OVERLAY_TYPES = HEALTH_EVENT_TYPES
 const PANEL_TYPES = HEALTH_EVENT_TYPES.filter((t) => t.value !== 'pressure')
-const defaultStyle = (t) => (t.severity ? 'point' : t.kg ? 'line' : 'marker')
 
 const showCfg = ref(false)
 const chartCfg = reactive({ enabled: [], types: {} })
@@ -221,6 +211,17 @@ function toggleType(type) {
   if (i === -1) chartCfg.enabled.push(type)
   else chartCfg.enabled.splice(i, 1)
 }
+
+/** Звіт друкує рівно те, що налаштовано тут: людина, період, увімкнені типи. */
+const reportLink = computed(() => ({
+  name: 'health-report',
+  query: {
+    member: memberId.value,
+    from: range.from || undefined,
+    to: range.to || undefined,
+    types: chartCfg.enabled.join(','),
+  },
+}))
 
 // --- Пресети графіка: іменовані комбінації накладень, зберігаються в БД ---------
 
@@ -293,242 +294,22 @@ const hasChartData = computed(() => overlayEvents.value.length > 0)
 const pressureCanvas = ref(null)
 let pressureChart = null
 
-// Подія без часу ставиться на полудень (для точок) або розтягується смугою на день (для маркерів)
-const eventMoment = (e) => new Date(`${e.date}T${e.time ?? '12:00'}:00`)
-
-function baseOptions(annotations, axes = {}) {
-  const scales = {
-    x: {
-      type: 'time',
-      adapters: { date: { locale: locale.value === 'uk' ? uk : undefined } },
-      time: {
-        tooltipFormat: 'dd.MM HH:mm',
-        minUnit: 'hour',
-        displayFormats: { day: 'dd.MM', hour: 'dd.MM HH:mm' },
-      },
-      ticks: { maxRotation: 60, autoSkip: true, maxTicksLimit: 12 },
-    },
-    // Явно, інакше датасети без yAxisID чіпляються до першої знайденої осі (severity)
-    y: { position: 'left', display: axes.y !== false },
-  }
-  if (axes.severity) {
-    scales.severity = {
-      position: 'right',
-      min: 0,
-      max: 5,
-      grid: { drawOnChartArea: false },
-      title: { display: true, text: t('health.severityAxis') },
-    }
-  }
-  if (axes.kg) {
-    scales.kg = {
-      position: 'right',
-      grid: { drawOnChartArea: false },
-      title: { display: true, text: t('health.kg') },
-    }
-  }
-  if (axes.bpm) {
-    scales.bpm = {
-      position: 'right',
-      grid: { drawOnChartArea: false },
-      title: { display: true, text: t('health.bpmAxis') },
-    }
-  }
-
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'nearest', intersect: false },
-    plugins: {
-      legend: { labels: { usePointStyle: true, boxHeight: 6 } },
-      annotation: { annotations },
-      tooltip: {
-        callbacks: {
-          label: (ctx) => {
-            const base = `${ctx.dataset.label}: ${ctx.parsed.y}`
-            if (ctx.dataset.yAxisID === 'severity') {
-              return `${base}/5${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
-            }
-            if (ctx.dataset.yAxisID === 'kg') {
-              return `${base} ${t('health.kg')}${ctx.raw.note ? ' — ' + ctx.raw.note : ''}`
-            }
-            if (ctx.dataset.yAxisID === 'bpm') {
-              return `${base} ${t('health.bpm')}`
-            }
-            return base
-          },
-        },
-      },
-    },
-    scales,
-  }
-}
-
-/**
- * Датасети накладень (точка/стовпчик/лінія) для увімкнених типів: тяжкість 1–5 —
- * на осі severity, вага — на власній осі кг. Події без числа стають маркерами.
- */
-function overlayDatasets() {
-  const datasets = []
-  for (const type of chartCfg.enabled) {
-    if (type === 'pressure') continue // малюється окремо: САТ/ДАТ + пульс
-    const cfg = chartCfg.types[type]
-    const ht = healthType(type)
-    if (!cfg || cfg.style === 'marker') continue
-    const points = overlayEvents.value
-      .filter((e) => e.type === type && (ht.kg ? e.payload.kg != null : e.payload.severity != null))
-      .map((e) => ({
-        x: eventMoment(e),
-        y: ht.kg ? e.payload.kg : e.payload.severity,
-        note: e.note,
-      }))
-    if (points.length === 0) continue
-    datasets.push({
-      type: cfg.style === 'bar' ? 'bar' : cfg.style === 'line' ? 'line' : 'scatter',
-      label: `${ht.icon} ${t(`healthTypes.${type}`)}`,
-      data: points,
-      yAxisID: ht.kg ? 'kg' : 'severity',
-      borderColor: cfg.color,
-      backgroundColor: cfg.style === 'bar' ? cfg.color + '99' : cfg.color,
-      pointStyle: ht.kg ? 'circle' : 'rectRot',
-      pointRadius: ht.kg ? 3.5 : 6,
-      barThickness: 10,
-      tension: 0.25,
-      spanGaps: true,
-    })
-  }
-
-  return datasets
-}
-
-/** Маркери: вертикальна пунктирна лінія (є час) або смуга на весь день (часу немає). */
-function overlayAnnotations() {
-  const annotations = {}
-  let i = 0
-  for (const e of overlayEvents.value) {
-    if (e.type === 'pressure') continue
-    const cfg = chartCfg.types[e.type]
-    const ht = healthType(e.type)
-    const hasValue = ht.kg ? e.payload.kg != null : ht.severity ? e.payload.severity != null : false
-    const asMarker = !cfg || cfg.style === 'marker' || !hasValue
-    if (!asMarker) continue
-    const valueText = e.payload.severity
-      ? ` ${e.payload.severity}/5`
-      : e.payload.kg
-        ? ` ${e.payload.kg}`
-        : ''
-    const label = {
-      display: true,
-      content: `${ht.icon}${valueText}`,
-      position: 'end',
-      backgroundColor: cfg.color,
-      font: { size: 10 },
-      padding: 3,
-    }
-    annotations['ev' + i++] = e.time
-      ? {
-          type: 'line',
-          xMin: eventMoment(e),
-          xMax: eventMoment(e),
-          borderColor: cfg.color,
-          borderWidth: 1.5,
-          borderDash: [4, 4],
-          label,
-        }
-      : {
-          type: 'box',
-          xMin: new Date(`${e.date}T00:00:00`),
-          xMax: new Date(`${e.date}T23:59:59`),
-          backgroundColor: cfg.color + '22',
-          borderWidth: 0,
-          label,
-        }
-  }
-
-  return annotations
-}
-
-const normLine = (value, label, color) => ({
-  type: 'line',
-  yMin: value,
-  yMax: value,
-  borderColor: color,
-  borderWidth: 1.5,
-  borderDash: [6, 4],
-  label: {
-    display: true,
-    content: label,
-    position: 'end',
-    font: { size: 10 },
-    backgroundColor: color,
-  },
-})
-
 function renderCharts() {
   pressureChart?.destroy()
   pressureChart = null
   if (!pressureCanvas.value) return
 
-  const pressureOn = chartCfg.enabled.includes('pressure')
-  const data = pressureOn ? pressureEvents.value : []
-  const overlays = overlayDatasets()
-  if (data.length === 0 && overlays.length === 0 && overlayEvents.value.length === 0) return
-
-  const pressureDatasets =
-    data.length === 0
-      ? []
-      : [
-          {
-            label: t('health.sbp'),
-            data: data.map((e) => ({ x: eventMoment(e), y: e.payload.systolic })),
-            yAxisID: 'y',
-            borderColor: '#b91c1c',
-            backgroundColor: '#b91c1c',
-            tension: 0.25,
-          },
-          {
-            label: t('health.dbp'),
-            data: data.map((e) => ({ x: eventMoment(e), y: e.payload.diastolic })),
-            yAxisID: 'y',
-            borderColor: '#1d4ed8',
-            backgroundColor: '#1d4ed8',
-            tension: 0.25,
-          },
-          {
-            label: t('health.pulse'),
-            data: data.map((e) => ({ x: eventMoment(e), y: e.payload.pulse })),
-            yAxisID: 'bpm',
-            borderColor: '#2f6b4f',
-            backgroundColor: '#2f6b4f',
-            borderDash: [3, 3],
-            tension: 0.25,
-          },
-        ]
-
-  const pressureAnnotations =
-    data.length === 0
-      ? {}
-      : {
-          sysNorm: normLine(135, t('health.sbpNorm'), '#b91c1c'),
-          diaNorm: normLine(85, t('health.dbpNorm'), '#1d4ed8'),
-        }
-
-  pressureChart = new Chart(pressureCanvas.value, {
-    type: 'line',
-    data: { datasets: [...pressureDatasets, ...overlays] },
-    options: baseOptions(
-      { ...pressureAnnotations, ...overlayAnnotations() },
-      {
-        y: data.length > 0,
-        bpm: data.length > 0,
-        severity: overlays.some((d) => d.yAxisID === 'severity'),
-        kg: overlays.some((d) => d.yAxisID === 'kg'),
-      },
-    ),
+  const config = buildHealthChart({
+    events: overlayEvents.value,
+    enabled: chartCfg.enabled,
+    types: chartCfg.types,
+    t,
+    locale: locale.value,
   })
+  if (config) pressureChart = new Chart(pressureCanvas.value, config)
 }
 
-watch([pressureEvents, overlayEvents], () => nextTick(renderCharts))
+watch(overlayEvents, () => nextTick(renderCharts))
 watch(
   chartCfg,
   () => {
@@ -611,7 +392,10 @@ onMounted(async () => {
         >
           {{ ht.icon }} {{ $t(`healthTypes.${ht.value}`) }}
         </button>
-        <button class="small" style="margin-left: auto" @click="showCfg = !showCfg">
+        <RouterLink :to="reportLink" target="_blank" style="margin-left: auto">
+          <button class="small" :disabled="!hasChartData">{{ $t('health.report') }}</button>
+        </RouterLink>
+        <button class="small" @click="showCfg = !showCfg">
           {{ $t('health.view') }}
         </button>
       </div>

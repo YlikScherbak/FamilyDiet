@@ -231,3 +231,14 @@ table.data tr:last-child td {
   justify-content: flex-end;
   margin-top: 16px;
 }
+
+/* Друк звіту: без шапки застосунку і службових кнопок */
+@media print {
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+  .page {
+    padding: 0;
+  }
+}

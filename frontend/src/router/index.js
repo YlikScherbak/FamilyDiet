@@ -18,6 +18,11 @@ const router = createRouter({
       component: () => import('../pages/IngredientsPage.vue'),
     },
     { path: '/health', name: 'health', component: () => import('../pages/HealthPage.vue') },
+    {
+      path: '/health/report',
+      name: 'health-report',
+      component: () => import('../pages/HealthReportPage.vue'),
+    },
     // Стара сторінка ваги переїхала в журнал здоров'я
     { path: '/weight', redirect: '/health' },
   ],
