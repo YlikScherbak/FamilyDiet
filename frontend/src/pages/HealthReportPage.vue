@@ -26,12 +26,13 @@ const types = ref(
   ),
 )
 const ready = ref(false)
+const includeTable = ref(true)
 
 const member = computed(() => app.members.find((m) => m.id === memberId))
 const generatedAt = new Date()
+const intlLocale = computed(() => (locale.value === 'uk' ? 'uk-UA' : 'en-GB'))
 
-const fmtDate = (iso) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString(locale.value === 'uk' ? 'uk-UA' : 'en-GB')
+const fmtDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(intlLocale.value)
 
 const periodLabel = computed(() =>
   from || to
@@ -64,28 +65,109 @@ function eventValue(e) {
   return e.payload.severity ? `${e.payload.severity}/5` : ''
 }
 
-const printReport = () => window.print()
+// --- Графіки: по одному на календарний місяць, вісь X — межі місяця ---------------
 
-const canvas = ref(null)
-let chart = null
+const pad = (n) => String(n).padStart(2, '0')
 
-function renderChart() {
-  chart?.destroy()
-  chart = null
-  if (!canvas.value) return
-  const config = buildHealthChart({
-    events: visible.value,
-    enabled,
-    types: types.value,
-    t,
-    locale: locale.value,
-    animate: false,
-  })
-  if (config) chart = new Chart(canvas.value, config)
+const months = computed(() => {
+  if (visible.value.length === 0) return []
+  const start = from || visible.value[0].date
+  const end = to || visible.value[visible.value.length - 1].date
+  const startDate = new Date(`${start}T00:00:00`)
+  const endDate = new Date(`${end}T23:59:59`)
+  const list = []
+  let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1)
+  while (cursor <= endDate) {
+    const y = cursor.getFullYear()
+    const m = cursor.getMonth()
+    const key = `${y}-${pad(m + 1)}`
+    const monthEvents = visible.value.filter((e) => e.date.startsWith(key))
+    if (monthEvents.length) {
+      const first = new Date(y, m, 1)
+      const last = new Date(y, m + 1, 0, 23, 59, 59)
+      list.push({
+        key,
+        label: first.toLocaleDateString(intlLocale.value, { month: 'long', year: 'numeric' }),
+        events: monthEvents,
+        min: first < startDate ? startDate : first,
+        max: last > endDate ? endDate : last,
+      })
+    }
+    cursor = new Date(y, m + 1, 1)
+  }
+  return list
+})
+
+// Спільна шкала ваги на всі місяці періоду — інакше нахил ліній непорівнюваний
+const kgRange = computed(() => {
+  const kgs = visible.value
+    .filter((e) => e.type === 'weight' && e.payload.kg != null)
+    .map((e) => e.payload.kg)
+  if (kgs.length < 2) return null
+  const pad = Math.max(0.5, (Math.max(...kgs) - Math.min(...kgs)) * 0.1)
+  return {
+    min: Math.floor((Math.min(...kgs) - pad) * 2) / 2,
+    max: Math.ceil((Math.max(...kgs) + pad) * 2) / 2,
+  }
+})
+
+const canvases = {}
+let charts = []
+
+function renderCharts() {
+  charts.forEach((c) => c.destroy())
+  charts = []
+  for (const month of months.value) {
+    const canvas = canvases[month.key]
+    if (!canvas) continue
+    const config = buildHealthChart({
+      events: month.events,
+      enabled,
+      types: types.value,
+      t,
+      locale: locale.value,
+      animate: false,
+      xRange: { min: month.min, max: month.max },
+      kgRange: kgRange.value,
+      smoothPulse: true,
+    })
+    if (config) charts.push(new Chart(canvas, config))
+  }
 }
 
-watch([visible, locale], () => nextTick(renderChart))
-onBeforeUnmount(() => chart?.destroy())
+// --- Щоденник: один рядок на день, колонка на кожен увімкнений тип -----------------
+
+const days = computed(() => {
+  const byDate = new Map()
+  for (const e of visible.value) {
+    if (!byDate.has(e.date)) byDate.set(e.date, [])
+    byDate.get(e.date).push(e)
+  }
+  return [...byDate.entries()].map(([date, list]) => ({
+    date,
+    cells: enabled.map((type) => list.filter((e) => e.type === type)),
+  }))
+})
+
+const cellLine = (e) =>
+  `${e.time ? e.time + ' ' : ''}${eventValue(e)}${e.note ? ' — ' + e.note : ''}`.trim()
+
+const printReport = () => window.print()
+
+// Chart.js не встигає перерахувати розмір при переході в print-режим —
+// перед друком задаємо розмір під альбомний A4 явно, після — повертаємо адаптивний.
+const PRINT_CHART = { w: 1040, h: 620 }
+const onBeforePrint = () => charts.forEach((c) => c.resize(PRINT_CHART.w, PRINT_CHART.h))
+const onAfterPrint = () => charts.forEach((c) => c.resize())
+window.addEventListener('beforeprint', onBeforePrint)
+window.addEventListener('afterprint', onAfterPrint)
+
+watch([months, locale], () => nextTick(renderCharts))
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeprint', onBeforePrint)
+  window.removeEventListener('afterprint', onAfterPrint)
+  charts.forEach((c) => c.destroy())
+})
 
 onMounted(async () => {
   const params = new URLSearchParams()
@@ -107,7 +189,7 @@ onMounted(async () => {
   events.value = list
   ready.value = true
   await nextTick()
-  renderChart()
+  renderCharts()
 })
 </script>
 
@@ -117,6 +199,10 @@ onMounted(async () => {
       <RouterLink to="/health"
         ><button>{{ $t('report.back') }}</button></RouterLink
       >
+      <label class="muted" style="display: flex; align-items: center; gap: 6px">
+        <input v-model="includeTable" type="checkbox" style="width: auto" />
+        {{ $t('report.includeTable') }}
+      </label>
       <span class="spacer" />
       <button class="primary" @click="printReport">{{ $t('report.print') }}</button>
     </div>
@@ -133,11 +219,13 @@ onMounted(async () => {
           {{ enabled.map((v) => `${healthType(v).icon} ${$t(`healthTypes.${v}`)}`).join(', ') }}
         </dd>
         <dt>{{ $t('report.generated') }}</dt>
-        <dd>{{ generatedAt.toLocaleString(locale === 'uk' ? 'uk-UA' : 'en-GB') }}</dd>
+        <dd>{{ generatedAt.toLocaleString(intlLocale) }}</dd>
       </dl>
     </header>
 
     <template v-if="ready">
+      <p v-if="visible.length === 0" class="muted">{{ $t('report.noEvents') }}</p>
+
       <section v-if="visible.length" class="card">
         <h2>{{ $t('report.summary') }}</h2>
         <div class="summary-grid">
@@ -228,31 +316,31 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section v-if="visible.length" class="card">
-        <h2>{{ $t('report.chart') }}</h2>
-        <div style="height: 340px"><canvas ref="canvas"></canvas></div>
+      <!-- Кожен місяць — окремий альбомний аркуш при друку -->
+      <section v-for="month in months" :key="month.key" class="card chart-page">
+        <h2>{{ $t('report.chart') }} — {{ month.label }}</h2>
+        <div class="chart-box">
+          <canvas :ref="(el) => (canvases[month.key] = el)"></canvas>
+        </div>
       </section>
 
-      <section class="card">
-        <h2>{{ $t('report.events') }}</h2>
-        <p v-if="visible.length === 0" class="muted">{{ $t('report.noEvents') }}</p>
-        <table v-else class="data">
+      <section v-if="includeTable && days.length" class="card table-page">
+        <h2>{{ $t('report.dailyLog') }}</h2>
+        <table class="data log">
           <thead>
             <tr>
               <th>{{ $t('report.date') }}</th>
-              <th>{{ $t('report.time') }}</th>
-              <th>{{ $t('report.type') }}</th>
-              <th>{{ $t('report.value') }}</th>
-              <th>{{ $t('report.note') }}</th>
+              <th v-for="type in enabled" :key="type">
+                {{ healthType(type).icon }} {{ $t(`healthTypes.${type}`) }}
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="e in visible" :key="e.id">
-              <td>{{ fmtDate(e.date) }}</td>
-              <td>{{ e.time ?? '—' }}</td>
-              <td>{{ healthType(e.type).icon }} {{ $t(`healthTypes.${e.type}`) }}</td>
-              <td>{{ eventValue(e) }}</td>
-              <td class="muted">{{ e.note ?? '' }}</td>
+            <tr v-for="day in days" :key="day.date">
+              <td class="nowrap">{{ fmtDate(day.date) }}</td>
+              <td v-for="(cell, i) in day.cells" :key="i">
+                <div v-for="e in cell" :key="e.id">{{ cellLine(e) }}</div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -304,6 +392,18 @@ onMounted(async () => {
   padding: 4px 8px;
   font-size: 13px;
 }
+.chart-box {
+  height: 340px;
+}
+.log td,
+.log th {
+  font-size: 12.5px;
+  vertical-align: top;
+  padding: 4px 8px;
+}
+.nowrap {
+  white-space: nowrap;
+}
 .over {
   color: var(--danger);
   font-weight: 600;
@@ -312,6 +412,15 @@ onMounted(async () => {
   font-size: 12px;
   margin-top: 24px;
 }
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+@page landscape {
+  size: A4 landscape;
+  margin: 10mm;
+}
 @media print {
   .report {
     max-width: none;
@@ -319,6 +428,31 @@ onMounted(async () => {
   .card {
     box-shadow: none;
     border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+  /* Графік — на власному альбомному аркуші, по центру і на всю ширину */
+  .chart-page {
+    page: landscape;
+    break-before: page;
+    border: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .chart-page h2 {
+    align-self: flex-start;
+  }
+  .chart-box {
+    width: 100%;
+    height: 165mm;
+    display: flex;
+    justify-content: center;
+  }
+  .table-page {
+    break-before: page;
+  }
+  .log tr {
     break-inside: avoid;
   }
 }

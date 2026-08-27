@@ -35,7 +35,7 @@ const normLine = (value, label, color) => ({
   },
 })
 
-function baseOptions({ annotations, axes, t, locale, animate }) {
+function baseOptions({ annotations, axes, t, locale, animate, xRange, kgRange }) {
   const scales = {
     x: {
       type: 'time',
@@ -46,6 +46,8 @@ function baseOptions({ annotations, axes, t, locale, animate }) {
         displayFormats: { day: 'dd.MM', hour: 'dd.MM HH:mm' },
       },
       ticks: { maxRotation: 60, autoSkip: true, maxTicksLimit: 12 },
+      // Звіт фіксує вісь на межах місяця, щоб графіки різних місяців мали один масштаб
+      ...(xRange ? { min: xRange.min, max: xRange.max } : {}),
     },
     // Явно, інакше датасети без yAxisID чіпляються до першої знайденої осі (severity)
     y: { position: 'left', display: axes.y !== false },
@@ -64,6 +66,8 @@ function baseOptions({ annotations, axes, t, locale, animate }) {
       position: 'right',
       grid: { drawOnChartArea: false },
       title: { display: true, text: t('health.kg') },
+      // Звіт фіксує спільну шкалу ваги на всі місяці, щоб нахил ліній був порівнюваним
+      ...(kgRange ? { min: kgRange.min, max: kgRange.max } : {}),
     }
   }
   if (axes.bpm) {
@@ -102,8 +106,23 @@ function baseOptions({ annotations, axes, t, locale, animate }) {
   }
 }
 
+/** Середнє значення поля за кожен день, точка — на полудень. */
+function dailyAverage(events, field) {
+  const byDate = new Map()
+  for (const e of events) {
+    const b = byDate.get(e.date) ?? { sum: 0, n: 0 }
+    b.sum += e.payload[field]
+    b.n += 1
+    byDate.set(e.date, b)
+  }
+  return [...byDate.entries()].map(([date, { sum, n }]) => ({
+    x: new Date(date + 'T12:00:00'),
+    y: Math.round((sum / n) * 10) / 10,
+  }))
+}
+
 /** Лінії САТ/ДАТ + пунктирний пульс на власній осі. */
-function pressureDatasets(events, t) {
+function pressureDatasets(events, t, smoothPulse) {
   const points = (field) => events.map((e) => ({ x: eventMoment(e), y: e.payload[field] }))
   const line = (label, field, color, extra = {}) => ({
     label,
@@ -113,10 +132,22 @@ function pressureDatasets(events, t) {
     tension: 0.25,
     ...extra,
   })
+  // Для звіту пульс згладжується до середнього за день (сирі заміри надто «шумлять»)
+  const pulseData = smoothPulse ? dailyAverage(events, 'pulse') : points('pulse')
   return [
     line(t('health.sbp'), 'systolic', PRESSURE_COLORS.sbp, { yAxisID: 'y' }),
     line(t('health.dbp'), 'diastolic', PRESSURE_COLORS.dbp, { yAxisID: 'y' }),
-    line(t('health.pulse'), 'pulse', PRESSURE_COLORS.pulse, { yAxisID: 'bpm', borderDash: [3, 3] }),
+    {
+      label: t('health.pulse'),
+      data: pulseData,
+      yAxisID: 'bpm',
+      borderColor: PRESSURE_COLORS.pulse,
+      backgroundColor: PRESSURE_COLORS.pulse,
+      borderDash: [3, 3],
+      borderWidth: smoothPulse ? 1.5 : undefined,
+      pointRadius: smoothPulse ? 2 : undefined,
+      tension: 0.25,
+    },
   ]
 }
 
@@ -208,7 +239,17 @@ function overlayAnnotations(events, types) {
  * з увімкненими типами `enabled` та стилями `types` ({type: {color, style}}).
  * Повертає null, якщо малювати нічого.
  */
-export function buildHealthChart({ events, enabled, types, t, locale, animate = true }) {
+export function buildHealthChart({
+  events,
+  enabled,
+  types,
+  t,
+  locale,
+  animate = true,
+  xRange = null,
+  kgRange = null,
+  smoothPulse = false,
+}) {
   const visible = events.filter((e) => enabled.includes(e.type))
   if (visible.length === 0) return null
   const pressure = enabled.includes('pressure') ? visible.filter((e) => e.type === 'pressure') : []
@@ -226,7 +267,12 @@ export function buildHealthChart({ events, enabled, types, t, locale, animate = 
 
   return {
     type: 'line',
-    data: { datasets: [...(pressure.length ? pressureDatasets(pressure, t) : []), ...overlays] },
+    data: {
+      datasets: [
+        ...(pressure.length ? pressureDatasets(pressure, t, smoothPulse) : []),
+        ...overlays,
+      ],
+    },
     options: baseOptions({
       annotations,
       axes: {
@@ -238,6 +284,8 @@ export function buildHealthChart({ events, enabled, types, t, locale, animate = 
       t,
       locale,
       animate,
+      xRange,
+      kgRange,
     }),
   }
 }
