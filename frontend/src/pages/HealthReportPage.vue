@@ -326,24 +326,26 @@ onMounted(async () => {
 
       <section v-if="includeTable && days.length" class="card table-page">
         <h2>{{ $t('report.dailyLog') }}</h2>
-        <table class="data log">
-          <thead>
-            <tr>
-              <th>{{ $t('report.date') }}</th>
-              <th v-for="type in enabled" :key="type">
-                {{ healthType(type).icon }} {{ $t(`healthTypes.${type}`) }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="day in days" :key="day.date">
-              <td class="nowrap">{{ fmtDate(day.date) }}</td>
-              <td v-for="(cell, i) in day.cells" :key="i">
-                <div v-for="e in cell" :key="e.id">{{ cellLine(e) }}</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div style="overflow-x: auto">
+          <table class="data log">
+            <thead>
+              <tr>
+                <th>{{ $t('report.date') }}</th>
+                <th v-for="type in enabled" :key="type">
+                  {{ healthType(type).icon }} {{ $t(`healthTypes.${type}`) }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="day in days" :key="day.date">
+                <td class="nowrap">{{ fmtDate(day.date) }}</td>
+                <td v-for="(cell, i) in day.cells" :key="i">
+                  <div v-for="e in cell" :key="e.id">{{ cellLine(e) }}</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <p class="muted disclaimer">{{ $t('report.disclaimer') }}</p>

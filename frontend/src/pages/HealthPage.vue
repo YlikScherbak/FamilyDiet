@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
+import listPlugin from '@fullcalendar/list'
 import ukLocale from '@fullcalendar/core/locales/uk'
 import { useI18n } from 'vue-i18n'
 import { api, HEALTH_EVENT_TYPES, healthType } from '../api'
@@ -13,6 +14,12 @@ const { t, locale } = useI18n()
 
 const app = useAppStore()
 const memberId = ref(null)
+
+// Телефон: календар списком, графік нижчий, модалка на весь екран
+const mobileQuery = window.matchMedia('(max-width: 720px)')
+const isMobile = ref(mobileQuery.matches)
+const onMobileChange = (e) => (isMobile.value = e.matches)
+mobileQuery.addEventListener('change', onMobileChange)
 const events = ref([])
 const error = ref('')
 
@@ -127,8 +134,14 @@ function eventTitle(e) {
 }
 
 const calendarOptions = computed(() => ({
-  plugins: [dayGridPlugin, interactionPlugin],
-  initialView: 'dayGridMonth',
+  plugins: [dayGridPlugin, listPlugin, interactionPlugin],
+  initialView: isMobile.value ? 'listMonth' : 'dayGridMonth',
+  // На телефоні панель календаря у два рядки, інакше кнопки виду не влазять
+  headerToolbar: isMobile.value
+    ? { left: 'title', right: 'prev,next' }
+    : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+  footerToolbar: isMobile.value ? { left: 'today', right: 'dayGridMonth,listMonth' } : false,
+  buttonText: { dayGridMonth: t('health.viewGrid'), listMonth: t('health.viewList') },
   locale: locale.value === 'uk' ? ukLocale : 'en',
   firstDay: 1,
   height: 'auto',
@@ -320,6 +333,7 @@ watch(
 )
 onBeforeUnmount(() => {
   pressureChart?.destroy()
+  mobileQuery.removeEventListener('change', onMobileChange)
 })
 
 watch(memberId, load)
@@ -339,7 +353,7 @@ onMounted(async () => {
       <select v-model.number="memberId">
         <option v-for="m in app.members" :key="m.id" :value="m.id">{{ m.name }}</option>
       </select>
-      <span class="muted">{{ $t('health.hint') }}</span>
+      <span class="muted hide-mobile">{{ $t('health.hint') }}</span>
     </div>
 
     <div class="card" style="margin-bottom: 16px">
@@ -435,10 +449,17 @@ onMounted(async () => {
       </div>
 
       <template v-if="hasChartData">
-        <div style="height: 340px"><canvas ref="pressureCanvas"></canvas></div>
+        <div :style="{ height: isMobile ? '260px' : '340px' }">
+          <canvas ref="pressureCanvas"></canvas>
+        </div>
       </template>
       <p v-else class="muted" style="margin: 8px 0 0">{{ $t('health.noData') }}</p>
     </div>
+
+    <!-- Швидке додавання події на сьогодні (телефон) -->
+    <button class="fab primary" :title="$t('health.quickAdd')" @click="openCreate(todayStr())">
+      ＋
+    </button>
 
     <!-- Модалка події -->
     <div v-if="modal.open" class="overlay" @click.self="modal.open = false">
@@ -460,18 +481,21 @@ onMounted(async () => {
           <input
             v-model.number="form.systolic"
             type="number"
+            inputmode="numeric"
             :placeholder="$t('health.systolic')"
             style="width: 130px"
           />
           <input
             v-model.number="form.diastolic"
             type="number"
+            inputmode="numeric"
             :placeholder="$t('health.diastolic')"
             style="width: 130px"
           />
           <input
             v-model.number="form.pulse"
             type="number"
+            inputmode="numeric"
             :placeholder="$t('health.pulse')"
             style="width: 100px"
           />
@@ -481,6 +505,7 @@ onMounted(async () => {
           <input
             v-model.number="form.kg"
             type="number"
+            inputmode="decimal"
             step="0.1"
             min="20"
             max="400"
@@ -560,6 +585,45 @@ onMounted(async () => {
 .cfg-name {
   width: 190px;
   font-size: 13.5px;
+}
+/* Плаваюча кнопка швидкого додавання — лише на телефоні */
+.fab {
+  display: none;
+}
+@media (max-width: 720px) {
+  .fab {
+    display: flex;
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    font-size: 26px;
+    line-height: 1;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    z-index: 40;
+  }
+  .overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+  .dialog {
+    width: 100%;
+    border-radius: 0;
+    padding: 16px;
+    overflow: auto;
+  }
+  .dialog .toolbar input[type='number'] {
+    flex: 1;
+    width: auto !important;
+    min-width: 0;
+  }
+  .cfg-name {
+    width: 130px;
+  }
 }
 .cfg-row input[type='color'] {
   width: 34px;

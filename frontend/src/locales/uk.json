@@ -171,7 +171,10 @@
     "presetPains": "Болі та ліки",
     "presetPressureMigraines": "Тиск і мігрені",
     "presetWeightPressure": "Вага і тиск",
-    "report": "📄 Звіт"
+    "report": "📄 Звіт",
+    "quickAdd": "Додати подію на сьогодні",
+    "viewGrid": "Сітка",
+    "viewList": "Список"
   },
   "report": {
     "title": "Звіт про здоров'я",

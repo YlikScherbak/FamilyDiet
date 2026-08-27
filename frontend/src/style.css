@@ -242,3 +242,86 @@ table.data tr:last-child td {
     padding: 0;
   }
 }
+
+/* Телефон: компактніша шапка, поля без iOS-зуму, модалки на весь екран */
+@media (max-width: 720px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 6px 12px;
+    height: auto;
+  }
+  .topbar .brand {
+    font-size: 16px;
+  }
+  .topbar nav {
+    flex-wrap: wrap;
+    gap: 2px;
+    order: 3;
+    width: 100%;
+  }
+  .topbar nav a {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .page {
+    padding: 12px;
+  }
+  .page h1 {
+    font-size: 19px;
+    margin-bottom: 12px;
+  }
+  .card {
+    padding: 12px;
+  }
+  .toolbar {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* менше 16px — iOS зумить сторінку при фокусі */
+  }
+  .modal-backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+  .modal {
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .data {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 720px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  /* FullCalendar на вузькому екрані */
+  .fc .fc-toolbar-title {
+    font-size: 17px;
+  }
+  .fc .fc-toolbar.fc-header-toolbar,
+  .fc .fc-toolbar.fc-footer-toolbar {
+    margin-bottom: 8px;
+    gap: 6px;
+  }
+  .fc .fc-button {
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+  .fc-list-event-time {
+    width: 60px;
+  }
+}
+/* Canvas графіків не має розпирати картку */
+canvas {
+  max-width: 100%;
+}
