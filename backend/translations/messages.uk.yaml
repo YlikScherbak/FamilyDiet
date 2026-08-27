@@ -38,3 +38,5 @@ error:
         custom_title_required: 'Для власної події вкажіть назву'
     setting:
         too_large: 'Налаштування завелике'
+    shopping:
+        range_too_long: 'Період списку закупівель — не більше %days% днів'

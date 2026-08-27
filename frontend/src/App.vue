@@ -22,6 +22,7 @@ onMounted(() => {
       <RouterLink to="/dishes">{{ $t('nav.dishes') }}</RouterLink>
       <RouterLink to="/ingredients">{{ $t('nav.ingredients') }}</RouterLink>
       <RouterLink to="/health">{{ $t('nav.health') }}</RouterLink>
+      <RouterLink to="/shopping">{{ $t('nav.shopping') }}</RouterLink>
     </nav>
     <select
       class="lang-switch"

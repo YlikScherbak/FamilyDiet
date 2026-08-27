@@ -4,6 +4,7 @@
     "dishes": "Dishes",
     "ingredients": "Ingredients",
     "health": "Health",
+    "shopping": "Shopping",
     "language": "Language"
   },
   "common": {
@@ -41,7 +42,9 @@
   "units": {
     "g": "g",
     "ml": "ml",
-    "pcs": "pcs"
+    "pcs": "pcs",
+    "kg": "kg",
+    "l": "l"
   },
   "nutrients": {
     "kcal": "Calories",
@@ -175,6 +178,17 @@
     "quickAdd": "Add an event for today",
     "viewGrid": "Grid",
     "viewList": "List"
+  },
+  "shopping": {
+    "title": "Shopping list",
+    "nextWeek": "Next week",
+    "print": "🖨 Print",
+    "progress": "{bought} of {total} bought",
+    "empty": "Nothing is planned in the menu for this period — the list is empty.",
+    "uses": "in {n} entries",
+    "markHome": "Have at home — remove from list",
+    "atHome": "At home",
+    "backToList": "Back to the list"
   },
   "report": {
     "title": "Health report",
