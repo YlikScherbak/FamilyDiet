@@ -81,3 +81,16 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production image (Dockerfile для Fly.io)
+        run: docker build -t familydiet:ci .
+
+      - name: Smoke — контейнер стартує, конфіг Symfony валідний
+        run: |
+          docker run --rm -e DATABASE_URL="postgresql://app:app@127.0.0.1:5432/familydiet?serverVersion=16" -e APP_SECRET=ci             familydiet:ci php bin/console about
+          docker run --rm familydiet:ci nginx -t

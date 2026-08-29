@@ -13,3 +13,9 @@ when@test:
         test: true
         session:
             storage_factory_id: session.storage.factory.mock_file
+
+when@prod:
+    framework:
+        # За reverse-proxy Fly.io: довіряємо X-Forwarded-* від безпосереднього апстріму, інакше Symfony бачить http://
+        trusted_proxies: '127.0.0.1,REMOTE_ADDR'
+        trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-port', 'x-forwarded-host']

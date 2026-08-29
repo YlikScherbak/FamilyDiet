@@ -1,6 +1,11 @@
 # FamilyDiet
 
 [![CI](https://github.com/YlikScherbak/FamilyDiet/actions/workflows/ci.yml/badge.svg)](https://github.com/YlikScherbak/FamilyDiet/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/badge/live%20demo-familydiet.fly.dev-8A2BE2)](https://familydiet.fly.dev)
+[![API docs](https://img.shields.io/badge/API%20docs-Swagger%20UI-85EA2D)](https://familydiet.fly.dev/api/doc)
+
+**Онлайн-демо:** https://familydiet.fly.dev (демо-дані, можна редагувати; Swagger — [/api/doc](https://familydiet.fly.dev/api/doc)).
+Машина зупиняється без трафіку — перший запит може тривати кілька секунд.
 
 Локальний застосунок ведення сімейної дієти на основі 21-денного плану харчування
 від нутриціолога (сам PDF-план не публікується; страви з нього розібрані в seed-дані
@@ -64,6 +69,25 @@ S01-S21 перекуси, N01-N07 додаткові перекуси) з окр
 
 > `doctrine:fixtures:load` очищає базу — план меню, вага та власні страви зникнуть.
 > Запускати лише для початкового наповнення.
+
+## Деплой (Fly.io)
+
+Production-образ — один контейнер (`Dockerfile`, multi-stage): Vite збирає SPA,
+Composer ставить залежності без dev, у runtime — nginx + php-fpm під supervisord.
+nginx роздає SPA і проксує `/api`, `/api/doc` у Symfony. `fly.toml` уже в репо.
+
+```bash
+fly launch --no-deploy --copy-config          # створює app за fly.toml
+fly postgres create --name familydiet-db --region ams --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1
+fly postgres attach familydiet-db             # виставляє секрет DATABASE_URL
+fly secrets set APP_SECRET=$(openssl rand -hex 16)
+fly deploy
+```
+
+`release_command` (`docker/prod/init-db.sh`) перед кожним релізом накочує міграції,
+а в порожню базу ще й засіває фікстури (96 інгредієнтів, 91 страва) і демо-меню —
+тож перший деплой одразу дає робоче демо. Довідник USDA у демо не вантажиться. Локально те саме можна перевірити:
+`docker build -t familydiet .` і `docker run ... familydiet init-db`.
 
 ## Скріншоти
 

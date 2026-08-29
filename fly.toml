@@ -1,0 +1,40 @@
+# Fly.io: один Machine з nginx + php-fpm; Postgres — окремий Fly Postgres (familydiet-db),
+# підключений через `fly postgres attach` (він сам виставляє секрет DATABASE_URL).
+# APP_SECRET — `fly secrets set APP_SECRET=<random hex>`. Live: https://familydiet.fly.dev
+
+app = 'familydiet'
+primary_region = 'ams'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[deploy]
+  release_command = 'init-db'
+
+[env]
+  APP_DEBUG = '0'
+  APP_ENV = 'prod'
+  DEFAULT_URI = 'https://familydiet.fly.dev'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = 'requests'
+    hard_limit = 100
+    soft_limit = 50
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/api/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
