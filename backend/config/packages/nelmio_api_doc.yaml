@@ -1,0 +1,16 @@
+nelmio_api_doc:
+    documentation:
+        info:
+            title: FamilyDiet API
+            description: |
+                REST API сімейного застосунку: меню на тиждень із порціями на кожного члена сім'ї,
+                довідник інгредієнтів (КБЖВ, USDA), журнал здоров'я (тиск, вага, події) з графіками
+                і звітами, список закупівель. Повідомлення помилок — українською або англійською
+                за заголовком `Accept-Language`.
+            version: 1.0.0
+        servers:
+            - url: /
+              description: Поточний хост (nginx → php-fpm)
+    areas:
+        path_patterns:
+            - ^/api(?!/doc(\.json)?$)

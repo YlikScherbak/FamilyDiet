@@ -62,6 +62,9 @@
             ".php-cs-fixer.dist.php"
         ]
     },
+    "nelmio/api-doc-bundle": {
+        "version": "v5.11.1"
+    },
     "phpstan/phpstan": {
         "version": "2.2.9"
     },
@@ -170,6 +173,19 @@
         "files": [
             "config/packages/translation.yaml",
             "translations/.gitignore"
+        ]
+    },
+    "symfony/twig-bundle": {
+        "version": "7.4",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "6.4",
+            "ref": "06dacf16872358cb1f2494e089070ff2d045233a"
+        },
+        "files": [
+            "config/packages/twig.yaml",
+            "templates/base.html.twig"
         ]
     },
     "symfony/validator": {

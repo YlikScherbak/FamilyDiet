@@ -9,6 +9,7 @@ use App\Enum\IngredientCategory;
 use App\Enum\Unit;
 use App\Repository\IngredientRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,6 +18,7 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/ingredients')]
+#[OA\Tag(name: 'Ingredients', description: 'Довідник інгредієнтів із КБЖВ на 100 г (~7 200 продуктів USDA + власні)')]
 class IngredientController extends AbstractController
 {
     public function __construct(
@@ -26,7 +28,36 @@ class IngredientController extends AbstractController
     ) {
     }
 
-    #[Route('', methods: ['GET'])]
+    #[Route('', methods: ['GET']),
+        OA\Get(
+            summary   : 'Пошук інгредієнтів',
+            parameters: [
+                new OA\Parameter(
+                    name       : 'search',
+                    in         : 'query',
+                    description: 'Підрядок назви (укр або англ)',
+                    schema     : new OA\Schema(type: 'string')
+                ),
+                new OA\Parameter(
+                    name  : 'category',
+                    in    : 'query',
+                    schema: new OA\Schema(type: 'string')
+                ),
+                new OA\Parameter(
+                    name       : 'limit',
+                    in         : 'query',
+                    description: '1–1000, типово 100',
+                    schema     : new OA\Schema(type: 'integer')
+                ),
+            ],
+            responses : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Список',
+                    content    : new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Ingredient'))
+                ),
+            ]
+        )]
     public function list(Request $request, IngredientRepository $repository): JsonResponse
     {
         $qb = $repository->createQueryBuilder('i')->orderBy('i.name', 'ASC');
@@ -52,7 +83,18 @@ class IngredientController extends AbstractController
      * Повний довідник для клієнтського кешу (Pinia store) — локальний пошук без запитів.
      * Сирий DBAL замість ORM: гідрація 7+ тис. entity займала секунди.
      */
-    #[Route('/all', methods: ['GET'])]
+    #[Route('/all', methods: ['GET']),
+        OA\Get(
+            summary    : 'Повний довідник для клієнтського кешу',
+            description: 'Сирий DBAL + json_encode повз Serializer — 7 000+ рядків за мілісекунди.',
+            responses  : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Усі інгредієнти',
+                    content    : new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Ingredient'))
+                ),
+            ]
+        )]
     public function all(): JsonResponse
     {
         $rows = $this->em->getConnection()->fetchAllAssociative(
@@ -77,13 +119,40 @@ class IngredientController extends AbstractController
         return new JsonResponse(json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 200, [], true);
     }
 
-    #[Route('/{id<\d+>}', methods: ['GET'])]
+    #[Route('/{id<\d+>}', methods: ['GET']),
+        OA\Get(
+            summary  : 'Один інгредієнт',
+            responses: [
+                new OA\Response(
+                    response   : 200,
+                    description: 'OK',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Ingredient')
+                ),
+                new OA\Response(response: 404, description: 'Не знайдено'),
+            ]
+        )]
     public function show(Ingredient $ingredient): JsonResponse
     {
         return $this->json($this->format($ingredient));
     }
 
-    #[Route('', methods: ['POST'])]
+    #[Route('', methods: ['POST']),
+        OA\Post(
+            summary    : 'Створити інгредієнт',
+            requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(ref: '#/components/schemas/IngredientInput')),
+            responses  : [
+                new OA\Response(
+                    response   : 201,
+                    description: 'Створено',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Ingredient')
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/FieldErrors')
+                ),
+            ]
+        )]
     public function create(Request $request): JsonResponse
     {
         $ingredient = new Ingredient();
@@ -91,13 +160,41 @@ class IngredientController extends AbstractController
         return $this->apply($ingredient, $request, 201);
     }
 
-    #[Route('/{id<\d+>}', methods: ['PUT'])]
+    #[Route('/{id<\d+>}', methods: ['PUT']),
+        OA\Put(
+            summary    : 'Оновити інгредієнт',
+            requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(ref: '#/components/schemas/IngredientInput')),
+            responses  : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Оновлено',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Ingredient')
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/FieldErrors')
+                ),
+            ]
+        )]
     public function update(Ingredient $ingredient, Request $request): JsonResponse
     {
         return $this->apply($ingredient, $request, 200);
     }
 
-    #[Route('/{id<\d+>}', methods: ['DELETE'])]
+    #[Route('/{id<\d+>}', methods: ['DELETE']),
+        OA\Delete(
+            summary    : 'Видалити інгредієнт',
+            description: 'Інгредієнт, що використовується у стравах, видалити не можна.',
+            responses  : [
+                new OA\Response(response: 204, description: 'Видалено'),
+                new OA\Response(
+                    response   : 409,
+                    description: 'Використовується у стравах',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function delete(Ingredient $ingredient): JsonResponse
     {
         $usages = $this->em->createQuery(

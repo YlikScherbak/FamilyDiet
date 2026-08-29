@@ -11,6 +11,7 @@ use App\Repository\FamilyMemberRepository;
 use App\Repository\IngredientRepository;
 use App\Repository\MealPlanEntryRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,6 +19,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/meal-plan')]
+#[OA\Tag(name: 'Meal plan', description: 'Календар меню: записи по слотах на кожного, денні підсумки КБЖВ, атомарна заміна дня, копіювання діапазону')]
 class MealPlanController extends AbstractController
 {
     private const COPY_MAX_DAYS = 31;
@@ -32,7 +34,49 @@ class MealPlanController extends AbstractController
     ) {
     }
 
-    #[Route('', methods: ['GET'])]
+    #[Route('', methods: ['GET']),
+        OA\Get(
+            summary   : 'Записи меню за період + денні підсумки',
+            parameters: [
+                new OA\Parameter(
+                    name    : 'from',
+                    in      : 'query',
+                    required: true,
+                    schema  : new OA\Schema(type: 'string', format: 'date')
+                ),
+                new OA\Parameter(
+                    name    : 'to',
+                    in      : 'query',
+                    required: true,
+                    schema  : new OA\Schema(type: 'string', format: 'date')
+                ),
+            ],
+            responses : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'OK',
+                    content    : new OA\JsonContent(
+                        properties: [
+                            new OA\Property(
+                                property: 'entries',
+                                type    : 'array',
+                                items   : new OA\Items(ref: '#/components/schemas/MealPlanEntry')
+                            ),
+                            new OA\Property(
+                                property: 'summaries',
+                                type    : 'array',
+                                items   : new OA\Items(ref: '#/components/schemas/DaySummary')
+                            ),
+                        ]
+                    )
+                ),
+                new OA\Response(
+                    response   : 400,
+                    description: 'Немає from/to',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function index(Request $request): JsonResponse
     {
         [$from, $to] = $this->parseRange($request);
@@ -103,7 +147,70 @@ class MealPlanController extends AbstractController
     /**
      * Атомарна заміна всіх записів дня для однієї людини (batch-збереження конструктора дня).
      */
-    #[Route('/day', methods: ['PUT'])]
+    #[Route('/day', methods: ['PUT']),
+        OA\Put(
+            summary    : 'Атомарно замінити всі записи дня для однієї людини',
+            description: 'В одній транзакції: видалити наявні записи дня → вставити нові. Так конструктор дня зберігається одним запитом.',
+            requestBody: new OA\RequestBody(
+                required: true,
+                content : new OA\JsonContent(
+                    required  : ['date', 'familyMemberId', 'entries'],
+                    properties: [
+                        new OA\Property(
+                            property: 'date',
+                            type    : 'string',
+                            format  : 'date'
+                        ),
+                        new OA\Property(property: 'familyMemberId', type: 'integer'),
+                        new OA\Property(
+                            property: 'entries',
+                            type    : 'array',
+                            items   : new OA\Items(
+                                properties: [
+                                    new OA\Property(
+                                        property: 'slot',
+                                        type    : 'string',
+                                        enum    : ['breakfast', 'lunch', 'dinner', 'snack', 'extra_snack']
+                                    ),
+                                    new OA\Property(
+                                        property: 'dishId',
+                                        type    : 'integer',
+                                        nullable: true
+                                    ),
+                                    new OA\Property(
+                                        property: 'ingredientId',
+                                        type    : 'integer',
+                                        nullable: true
+                                    ),
+                                    new OA\Property(
+                                        property   : 'amount',
+                                        type       : 'number',
+                                        nullable   : true,
+                                        description: 'Кількість продукту в його одиниці'
+                                    ),
+                                ]
+                            )
+                        ),
+                    ]
+                )
+            ),
+            responses  : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Збережено',
+                    content    : new OA\JsonContent(
+                        properties: [
+                            new OA\Property(property: 'saved', type: 'integer'),
+                        ]
+                    )
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function replaceDay(Request $request): JsonResponse
     {
         try {
@@ -167,7 +274,61 @@ class MealPlanController extends AbstractController
         return $this->json(['saved' => count($newEntries)]);
     }
 
-    #[Route('/entries', methods: ['POST'])]
+    #[Route('/entries', methods: ['POST']),
+        OA\Post(
+            summary    : 'Додати один запис у слот',
+            description: 'Рівно одне з двох: dishId або ingredientId + amount.',
+            requestBody: new OA\RequestBody(
+                required: true,
+                content : new OA\JsonContent(
+                    required  : ['date', 'familyMemberId', 'slot'],
+                    properties: [
+                        new OA\Property(
+                            property: 'date',
+                            type    : 'string',
+                            format  : 'date'
+                        ),
+                        new OA\Property(property: 'familyMemberId', type: 'integer'),
+                        new OA\Property(
+                            property: 'slot',
+                            type    : 'string',
+                            enum    : ['breakfast', 'lunch', 'dinner', 'snack', 'extra_snack']
+                        ),
+                        new OA\Property(
+                            property: 'dishId',
+                            type    : 'integer',
+                            nullable: true
+                        ),
+                        new OA\Property(
+                            property: 'ingredientId',
+                            type    : 'integer',
+                            nullable: true
+                        ),
+                        new OA\Property(
+                            property: 'amount',
+                            type    : 'number',
+                            nullable: true
+                        ),
+                    ]
+                )
+            ),
+            responses  : [
+                new OA\Response(
+                    response   : 201,
+                    description: 'Створено',
+                    content    : new OA\JsonContent(
+                        properties: [
+                            new OA\Property(property: 'id', type: 'integer'),
+                        ]
+                    )
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function addEntry(Request $request): JsonResponse
     {
         try {
@@ -216,7 +377,14 @@ class MealPlanController extends AbstractController
         return $this->json(['id' => $entry->getId()], 201);
     }
 
-    #[Route('/entries/{id<\d+>}', methods: ['DELETE'])]
+    #[Route('/entries/{id<\d+>}', methods: ['DELETE']),
+        OA\Delete(
+            summary  : 'Прибрати запис зі слота',
+            responses: [
+                new OA\Response(response: 204, description: 'Видалено'),
+                new OA\Response(response: 404, description: 'Не знайдено'),
+            ]
+        )]
     public function deleteEntry(MealPlanEntry $entry): JsonResponse
     {
         $this->em->remove($entry);
@@ -230,7 +398,55 @@ class MealPlanController extends AbstractController
      * Цільовий діапазон заміняється, а не доповнюється — повторне копіювання не плодить дублів.
      * Опційний familyMemberId обмежує і джерело, і заміну однією людиною.
      */
-    #[Route('/copy', methods: ['POST'])]
+    #[Route('/copy', methods: ['POST']),
+        OA\Post(
+            summary    : 'Скопіювати діапазон дат',
+            description: 'Цільовий діапазон ЗАМІНЯЄТЬСЯ (не доповнюється) в транзакції — повторна копія не плодить дублів. Опційний familyMemberId обмежує і джерело, і заміну однією людиною. Діапазон — до 31 дня.',
+            requestBody: new OA\RequestBody(
+                required: true,
+                content : new OA\JsonContent(
+                    required  : ['sourceFrom', 'sourceTo', 'targetFrom'],
+                    properties: [
+                        new OA\Property(
+                            property: 'sourceFrom',
+                            type    : 'string',
+                            format  : 'date'
+                        ),
+                        new OA\Property(
+                            property: 'sourceTo',
+                            type    : 'string',
+                            format  : 'date'
+                        ),
+                        new OA\Property(
+                            property: 'targetFrom',
+                            type    : 'string',
+                            format  : 'date'
+                        ),
+                        new OA\Property(
+                            property: 'familyMemberId',
+                            type    : 'integer',
+                            nullable: true
+                        ),
+                    ]
+                )
+            ),
+            responses  : [
+                new OA\Response(
+                    response   : 201,
+                    description: 'Скопійовано',
+                    content    : new OA\JsonContent(
+                        properties: [
+                            new OA\Property(property: 'copied', type: 'integer'),
+                        ]
+                    )
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідний діапазон',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function copy(Request $request): JsonResponse
     {
         try {

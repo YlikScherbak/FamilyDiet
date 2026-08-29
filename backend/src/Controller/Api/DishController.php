@@ -12,6 +12,7 @@ use App\Repository\DishRepository;
 use App\Repository\FamilyMemberRepository;
 use App\Repository\IngredientRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,6 +21,7 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/dishes')]
+#[OA\Tag(name: 'Dishes', description: "Страви з окремою порцією (грамівкою) на кожного члена сім'ї; калорійність обчислюється з інгредієнтів")]
 class DishController extends AbstractController
 {
     public function __construct(
@@ -31,7 +33,30 @@ class DishController extends AbstractController
     ) {
     }
 
-    #[Route('', methods: ['GET'])]
+    #[Route('', methods: ['GET']),
+        OA\Get(
+            summary   : 'Список страв із порціями',
+            parameters: [
+                new OA\Parameter(
+                    name       : 'search',
+                    description: 'Підрядок назви або коду',
+                    in         : 'query',
+                    schema     : new OA\Schema(type: 'string')
+                ),
+                new OA\Parameter(
+                    name  : 'category',
+                    in    : 'query',
+                    schema: new OA\Schema(type: 'string', enum: ['breakfast', 'lunch', 'dinner', 'snack', 'extra_snack'])
+                ),
+            ],
+            responses : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Список',
+                    content    : new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Dish'))
+                ),
+            ],
+        )]
     public function list(Request $request, DishRepository $repository): JsonResponse
     {
         $qb = $repository->createQueryBuilder('d')
@@ -54,25 +79,80 @@ class DishController extends AbstractController
         return $this->json(array_map($this->format(...), $qb->getQuery()->getResult()));
     }
 
-    #[Route('/{id<\d+>}', methods: ['GET'])]
+    #[Route('/{id<\d+>}', methods: ['GET']),
+        OA\Get(
+            summary  : 'Одна страва',
+            responses: [
+                new OA\Response(
+                    response   : 200,
+                    description: 'OK',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Dish')
+                ),
+                new OA\Response(response: 404, description: 'Не знайдено'),
+            ]
+        )]
     public function show(Dish $dish): JsonResponse
     {
         return $this->json($this->format($dish));
     }
 
-    #[Route('', methods: ['POST'])]
+    #[Route('', methods: ['POST']),
+        OA\Post(
+            summary    : 'Створити страву з порціями',
+            requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(ref: '#/components/schemas/DishInput')),
+            responses  : [
+                new OA\Response(
+                    response   : 201,
+                    description: 'Створено',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Dish')
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function create(Request $request): JsonResponse
     {
         return $this->apply(new Dish(), $request, 201);
     }
 
-    #[Route('/{id<\d+>}', methods: ['PUT'])]
+    #[Route('/{id<\d+>}', methods: ['PUT']),
+        OA\Put(
+            summary    : 'Оновити страву (порції перебудовуються з нуля)',
+            requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(ref: '#/components/schemas/DishInput')),
+            responses  : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Оновлено',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Dish')
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function update(Dish $dish, Request $request): JsonResponse
     {
         return $this->apply($dish, $request, 200);
     }
 
-    #[Route('/{id<\d+>}', methods: ['DELETE'])]
+    #[Route('/{id<\d+>}', methods: ['DELETE']),
+        OA\Delete(
+            summary    : 'Видалити страву',
+            description: 'Заплановану в меню страву видалити не можна — спершу прибрати з календаря.',
+            responses  : [
+                new OA\Response(response: 204, description: 'Видалено'),
+                new OA\Response(
+                    response   : 409,
+                    description: 'Запланована в меню',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function delete(Dish $dish): JsonResponse
     {
         $usages = $this->em->createQuery(

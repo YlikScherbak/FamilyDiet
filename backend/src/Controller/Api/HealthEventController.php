@@ -9,6 +9,7 @@ use App\Health\HealthEventTypeRegistry;
 use App\Repository\FamilyMemberRepository;
 use App\Repository\HealthEventRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,6 +17,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/health-events')]
+#[OA\Tag(name: 'Health journal', description: "Події здоров'я з JSONB payload: тиск/пульс, вага, болі з тяжкістю, ліки, нотатки, власні. Поля валідує реєстр типів")]
 class HealthEventController extends AbstractController
 {
     public function __construct(
@@ -27,7 +29,39 @@ class HealthEventController extends AbstractController
     ) {
     }
 
-    #[Route('', methods: ['GET'])]
+    #[Route('', methods: ['GET']),
+        OA\Get(
+            summary   : 'Події за фільтрами',
+            parameters: [
+                new OA\Parameter(
+                    name  : 'memberId',
+                    in    : 'query',
+                    schema: new OA\Schema(type: 'integer')
+                ),
+                new OA\Parameter(
+                    name  : 'type',
+                    in    : 'query',
+                    schema: new OA\Schema(type: 'string')
+                ),
+                new OA\Parameter(
+                    name  : 'from',
+                    in    : 'query',
+                    schema: new OA\Schema(type: 'string', format: 'date')
+                ),
+                new OA\Parameter(
+                    name  : 'to',
+                    in    : 'query',
+                    schema: new OA\Schema(type: 'string', format: 'date')
+                ),
+            ],
+            responses : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Хронологічно (дата, час)',
+                    content    : new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/HealthEvent'))
+                ),
+            ]
+        )]
     public function list(Request $request): JsonResponse
     {
         $qb = $this->events->createQueryBuilder('e')
@@ -57,19 +91,64 @@ class HealthEventController extends AbstractController
         return $this->json(array_map($this->format(...), $qb->getQuery()->getResult()));
     }
 
-    #[Route('', methods: ['POST'])]
+    #[Route('', methods: ['POST']),
+        OA\Post(
+            summary    : 'Створити подію',
+            requestBody: new OA\RequestBody(
+                required: true,
+                content : new OA\JsonContent(ref: '#/components/schemas/HealthEventInput')
+            ),
+            responses  : [
+                new OA\Response(
+                    response   : 201,
+                    description: 'Створено',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/HealthEvent')
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані типу',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/FieldErrors')
+                ),
+            ]
+        )]
     public function create(Request $request): JsonResponse
     {
         return $this->apply(new HealthEvent(), $request, 201);
     }
 
-    #[Route('/{id<\d+>}', methods: ['PUT'])]
+    #[Route('/{id<\d+>}', methods: ['PUT']),
+        OA\Put(
+            summary    : 'Оновити подію',
+            requestBody: new OA\RequestBody(
+                required: true,
+                content : new OA\JsonContent(ref: '#/components/schemas/HealthEventInput')
+            ),
+            responses  : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Оновлено',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/HealthEvent')
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Невалідні дані',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/FieldErrors')
+                ),
+            ]
+        )]
     public function update(HealthEvent $event, Request $request): JsonResponse
     {
         return $this->apply($event, $request, 200);
     }
 
-    #[Route('/{id<\d+>}', methods: ['DELETE'])]
+    #[Route('/{id<\d+>}', methods: ['DELETE']),
+        OA\Delete(
+            summary  : 'Видалити подію',
+            responses: [
+                new OA\Response(response: 204, description: 'Видалено'),
+                new OA\Response(response: 404, description: 'Не знайдено'),
+            ]
+        )]
     public function delete(HealthEvent $event): JsonResponse
     {
         $this->em->remove($event);

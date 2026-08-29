@@ -7,6 +7,7 @@ namespace App\Controller\Api;
 use App\Entity\MealPlanEntry;
 use App\Repository\MealPlanEntryRepository;
 use App\Shopping\ShoppingListBuilder;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -14,6 +15,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route('/api/shopping-list')]
+#[OA\Tag(name: 'Shopping list', description: 'Інгредієнти меню за період, розкладені на порції кожного і згруповані за категоріями')]
 class ShoppingListController extends AbstractController
 {
     /** Захист від випадкового «за весь рік» — список на квартал уже безглуздий. */
@@ -26,7 +28,42 @@ class ShoppingListController extends AbstractController
     ) {
     }
 
-    #[Route('', methods: ['GET'])]
+    #[Route('', methods: ['GET']),
+        OA\Get(
+            summary   : 'Список закупівель за період',
+            parameters: [
+                new OA\Parameter(
+                    name    : 'from',
+                    in      : 'query',
+                    required: true,
+                    schema  : new OA\Schema(type: 'string', format: 'date')
+                ),
+                new OA\Parameter(
+                    name       : 'to',
+                    in         : 'query',
+                    required   : true,
+                    description: 'Не більше 92 днів від from',
+                    schema     : new OA\Schema(type: 'string', format: 'date')
+                ),
+            ],
+            responses : [
+                new OA\Response(
+                    response   : 200,
+                    description: 'Групи за категоріями',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/ShoppingList')
+                ),
+                new OA\Response(
+                    response   : 400,
+                    description: 'Невалідні дати',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+                new OA\Response(
+                    response   : 422,
+                    description: 'Задовгий період',
+                    content    : new OA\JsonContent(ref: '#/components/schemas/Error')
+                ),
+            ]
+        )]
     public function index(Request $request): JsonResponse
     {
         $from = $this->parseDate((string) $request->query->get('from', ''));
