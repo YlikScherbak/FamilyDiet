@@ -1,0 +1,7 @@
+# Shell-скрипти й Docker-файли — завжди LF: вони виконуються в Linux-контейнерах
+*.sh text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.toml text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
