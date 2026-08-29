@@ -24,6 +24,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'app:seed-demo', description: 'Демо-дані: меню на поточний тиждень + історія ваги (перезаписує!)')]
 class SeedDemoCommand extends Command
 {
+    /** Позначка демо-записів тиску: лише їх команда видаляє при повторному запуску. */
+    private const DEMO_NOTE = 'demo';
+
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly FamilyMemberRepository $members,
@@ -53,14 +56,19 @@ class SeedDemoCommand extends Command
 
         $planned = 0;
         $weighed = 0;
+        $measured = 0;
 
-        $this->em->wrapInTransaction(function () use ($members, $byCategory, $monday, $sunday, &$planned, &$weighed): void {
+        $this->em->wrapInTransaction(function () use ($members, $byCategory, $monday, $sunday, &$planned, &$weighed, &$measured): void {
             $this->em->createQuery(
                 'DELETE FROM App\Entity\MealPlanEntry e WHERE e.date >= :from AND e.date <= :to'
             )->execute(['from' => $monday, 'to' => $sunday]);
             $this->em->createQuery(
                 "DELETE FROM App\Entity\HealthEvent h WHERE h.type = 'weight'"
             )->execute();
+            // Тиск чистимо лише демо-записи (позначені нотаткою) — реальні заміри користувача не чіпаємо
+            $this->em->createQuery(
+                "DELETE FROM App\Entity\HealthEvent h WHERE h.type = 'pressure' AND h.note = :note"
+            )->execute(['note' => self::DEMO_NOTE]);
 
             // Меню: кожному — свій набір страв на день, зсув по днях дає різноманіття без random
             foreach (range(0, 6) as $day) {
@@ -105,14 +113,45 @@ class SeedDemoCommand extends Command
                     }
                 }
             }
+
+            // Тиск і пульс першого члена сім'ї: 8 тижнів, ранок і вечір, ранкові вищі, повільний тренд униз
+            $first = $members[0];
+            foreach (range(0, 55) as $dayIndex) {
+                $date = $monday->modify(sprintf('-%d days', 56 - $dayIndex));
+                foreach ([['07:10', 6, 3, -4], ['21:30', 0, 0, 2]] as [$time, $sysShift, $diaShift, $pulseShift]) {
+                    if ($dayIndex % 9 === 4 && $time === '21:30') {
+                        continue; // інколи вечірній замір пропущено — так природніше
+                    }
+                    // Детермінований «шум» через crc32: без random, але без видимої періодичності
+                    $h = crc32(sprintf('%d/%s', $dayIndex, $time));
+                    $sysNoise = $h % 11 - 5;
+                    $diaNoise = intdiv($h, 11) % 7 - 3;
+                    $pulseNoise = intdiv($h, 77) % 13 - 6;
+                    $this->em->persist(
+                        (new HealthEvent())
+                            ->setFamilyMember($first)
+                            ->setDate($date)
+                            ->setTime(\DateTimeImmutable::createFromFormat('!H:i', $time) ?: null)
+                            ->setType('pressure')
+                            ->setNote(self::DEMO_NOTE)
+                            ->setPayload([
+                                'systolic' => 142 - intdiv($dayIndex, 8) + $sysShift + $sysNoise,
+                                'diastolic' => 90 - intdiv($dayIndex, 14) + $diaShift + $diaNoise,
+                                'pulse' => 70 + $pulseShift + $pulseNoise,
+                            ])
+                    );
+                    ++$measured;
+                }
+            }
         });
 
         $io->success(sprintf(
-            'Меню на тиждень %s — %s: %d записів; ваги: %d записів.',
+            'Меню на тиждень %s — %s: %d записів; ваги: %d записів; тиску: %d записів.',
             $monday->format('Y-m-d'),
             $sunday->format('Y-m-d'),
             $planned,
-            $weighed
+            $weighed,
+            $measured
         ));
 
         return Command::SUCCESS;
