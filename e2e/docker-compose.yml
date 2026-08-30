@@ -1,0 +1,48 @@
+# Ізольований стек для e2e: production-образ (кореневий Dockerfile) + одноразовий Postgres.
+# Порт 8090, щоб не конфліктувати з dev-стеком (8080/5173).
+#   docker compose -f e2e/docker-compose.yml up -d --build --wait
+#   docker compose -f e2e/docker-compose.yml down -v
+name: familydiet-e2e
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: familydiet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d familydiet"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Те саме, що Fly release_command: міграції + фікстури + демо-меню в порожню базу
+  init:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: familydiet-e2e
+    command: ["init-db"]
+    environment:
+      DATABASE_URL: "postgres://app:app@db:5432/familydiet?sslmode=disable"
+      APP_SECRET: e2e
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    image: familydiet-e2e
+    environment:
+      DATABASE_URL: "postgres://app:app@db:5432/familydiet?sslmode=disable"
+      APP_SECRET: e2e
+    ports:
+      - "8090:8080"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/health | grep -q '\"db\":true'"]
+      interval: 3s
+      timeout: 5s
+      retries: 20

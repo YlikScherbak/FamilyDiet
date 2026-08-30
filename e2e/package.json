@@ -1,0 +1,14 @@
+{
+  "name": "familydiet-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Playwright e2e-тести FamilyDiet: повний стек (production-образ + Postgres)",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}

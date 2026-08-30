@@ -9,6 +9,17 @@ init: up vendor migrate fixtures usda ## Повний запуск з нуля (
 	@echo ""
 	@echo "Готово: застосунок — http://localhost:5173, API — http://localhost:8080/api/health"
 
+## ---- E2E (Playwright, production-образ + одноразовий Postgres, порт 8090) ----
+
+e2e-up: ## Підняти ізольований e2e-стек (збірка образу, міграції, фікстури, демо)
+	docker compose -f e2e/docker-compose.yml up -d --build --wait
+
+e2e: ## Прогнати Playwright-тести проти e2e-стеку (перед цим: make e2e-up; один раз — cd e2e && npm ci && npx playwright install chromium)
+	cd e2e && npx playwright test
+
+e2e-down: ## Зупинити e2e-стек і видалити його БД
+	docker compose -f e2e/docker-compose.yml down -v
+
 ## ---- Життєвий цикл --------------------------------------------------------
 
 up: ## Зібрати і підняти контейнери
@@ -70,4 +81,4 @@ psql: ## Консоль PostgreSQL
 help: ## Список команд
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: init up down logs ps vendor migrate fixtures usda sh psql help
+.PHONY: init up down logs ps vendor migrate fixtures usda sh psql help e2e-up e2e e2e-down
