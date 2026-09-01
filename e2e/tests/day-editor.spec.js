@@ -21,14 +21,19 @@ test('день збирається зі страви і продукту, пі�
   const editor = page.locator('.modal.editor')
   await expect(editor.getByRole('heading', { name: `${member.name} · ${monday}` })).toBeVisible()
 
-  // Кожен сценарій починає з чистого сніданку — прибираємо, що насіяло демо
+  // Кожен сценарій починає з чистого сніданку — прибираємо, що насіяло демо.
+  // Увесь блок у toPass(): на повільному CI items домальовуються пізніше за відкриття модалки.
   const breakfast = editor.locator('section.slot').first()
   const existing = breakfast.locator('.item')
-  while ((await existing.count()) > 0) {
-    await existing.first().hover() // ✕ видима лише при наведенні
-    await existing.first().getByRole('button', { name: '✕' }).click()
-  }
-  await expect(breakfast.locator('.slot-head .muted')).toHaveText(`0 ${t('common.kcal')}`)
+  await expect(async () => {
+    while ((await existing.count()) > 0) {
+      await existing.first().hover() // ✕ видима лише при наведенні
+      await existing.first().getByRole('button', { name: '✕' }).click()
+    }
+    await expect(breakfast.locator('.slot-head .muted')).toHaveText(`0 ${t('common.kcal')}`, {
+      timeout: 2000,
+    })
+  }).toPass({ timeout: 20_000 })
 
   // 1) страва з пікера
   await breakfast.getByRole('button', { name: t('dayEditor.addDish') }).click()
