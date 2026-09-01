@@ -40,3 +40,8 @@ error:
         too_large: 'The setting is too large'
     shopping:
         range_too_long: 'Shopping list period is limited to %days% days'
+    day_template:
+        name_and_date_required: 'Template name and date are required, date format YYYY-MM-DD'
+        name_taken: 'Template “%name%” already exists'
+        day_empty: 'There are no menu entries on this date — nothing to save'
+        date_required: 'Date is required, format YYYY-MM-DD'

@@ -63,7 +63,14 @@
     "clickHint": "Click a cell to open the day editor",
     "copyWeek": "⧉ Copy week →",
     "confirmCopy": "Copy all dishes of this week to the next one?",
-    "total": "Total"
+    "total": "Total",
+    "templates": "Templates:",
+    "templatePlaceholder": "— pick a template —",
+    "applyTemplate": "Apply to day",
+    "saveTemplate": "💾 Day → template",
+    "templateNamePrompt": "Template name for {date}:",
+    "confirmApplyTemplate": "Replace all entries of {date} with “{name}” (for the whole family)?",
+    "confirmDeleteTemplate": "Delete template “{name}”?"
   },
   "dayEditor": {
     "unsaved": "There are unsaved changes",

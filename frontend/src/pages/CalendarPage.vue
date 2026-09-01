@@ -83,6 +83,48 @@ function openEditor(date, member) {
   editor.value = { date, member }
 }
 
+// --- Шаблони днів: знімок дати і застосування на дату ---------------------
+const templates = ref([])
+const selectedTemplate = ref('')
+const templateDate = ref('')
+
+async function loadTemplates() {
+  templates.value = await api.get('/day-templates')
+}
+
+async function saveDayAsTemplate() {
+  const name = (window.prompt(t('menu.templateNamePrompt', { date: templateDate.value })) ?? '').trim()
+  if (!name) return
+  try {
+    const created = await api.post('/day-templates', { name, date: templateDate.value })
+    await loadTemplates()
+    selectedTemplate.value = String(created.id)
+  } catch (e) {
+    alert(e.message)
+  }
+}
+
+async function applyTemplate() {
+  const tpl = templates.value.find((x) => String(x.id) === selectedTemplate.value)
+  if (!tpl) return
+  if (!confirm(t('menu.confirmApplyTemplate', { name: tpl.name, date: templateDate.value }))) return
+  try {
+    await api.post(`/day-templates/${tpl.id}/apply`, { date: templateDate.value })
+    await load()
+  } catch (e) {
+    alert(e.message)
+  }
+}
+
+async function deleteTemplate() {
+  const tpl = templates.value.find((x) => String(x.id) === selectedTemplate.value)
+  if (!tpl) return
+  if (!confirm(t('menu.confirmDeleteTemplate', { name: tpl.name }))) return
+  await api.del(`/day-templates/${tpl.id}`)
+  selectedTemplate.value = ''
+  await loadTemplates()
+}
+
 async function copyWeek() {
   const target = new Date(weekStart.value)
   target.setDate(target.getDate() + 7)
@@ -96,6 +138,8 @@ async function copyWeek() {
 }
 
 onMounted(async () => {
+  templateDate.value = today
+  loadTemplates()
   await app.loadMembers()
   await load()
 })
@@ -112,6 +156,25 @@ onMounted(async () => {
       <span class="spacer" />
       <span class="muted">{{ $t('menu.clickHint') }}</span>
       <button @click="copyWeek">{{ $t('menu.copyWeek') }}</button>
+    </div>
+
+    <div class="toolbar templates-bar">
+      <span class="muted">{{ $t('menu.templates') }}</span>
+      <select v-model="selectedTemplate" class="template-select">
+        <option value="">{{ $t('menu.templatePlaceholder') }}</option>
+        <option v-for="tpl in templates" :key="tpl.id" :value="String(tpl.id)">
+          {{ tpl.name }} ({{ $t('common.count', { n: tpl.items }) }})
+        </option>
+      </select>
+      <input v-model="templateDate" type="date" />
+      <button class="small" :disabled="!selectedTemplate || !templateDate" @click="applyTemplate">
+        {{ $t('menu.applyTemplate') }}
+      </button>
+      <button class="small danger" :disabled="!selectedTemplate" @click="deleteTemplate">✕</button>
+      <span class="spacer" />
+      <button class="small" :disabled="!templateDate" @click="saveDayAsTemplate">
+        {{ $t('menu.saveTemplate') }}
+      </button>
     </div>
 
     <div style="overflow-x: auto">

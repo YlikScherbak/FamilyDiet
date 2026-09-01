@@ -63,7 +63,14 @@
     "clickHint": "Клік по клітинці — редактор дня",
     "copyWeek": "⧉ Копіювати тиждень →",
     "confirmCopy": "Скопіювати всі страви цього тижня на наступний?",
-    "total": "Разом"
+    "total": "Разом",
+    "templates": "Шаблони:",
+    "templatePlaceholder": "— оберіть шаблон —",
+    "applyTemplate": "Застосувати на день",
+    "saveTemplate": "💾 День → шаблон",
+    "templateNamePrompt": "Назва шаблону для дня {date}:",
+    "confirmApplyTemplate": "Замінити всі записи {date} шаблоном «{name}» (для всієї сім'ї)?",
+    "confirmDeleteTemplate": "Видалити шаблон «{name}»?"
   },
   "dayEditor": {
     "unsaved": "Є незбережені зміни",

@@ -194,6 +194,15 @@ use OpenApi\Attributes as OA;
         ])),
     ],
 )]
+#[OA\Schema(
+    schema: 'DayTemplate',
+    properties: [
+        new OA\Property(property: 'id', type: 'integer', example: 3),
+        new OA\Property(property: 'name', type: 'string', example: 'Розвантажувальний день'),
+        new OA\Property(property: 'items', type: 'integer', description: 'Кількість записів у шаблоні', example: 10),
+        new OA\Property(property: 'createdAt', type: 'string', format: 'date'),
+    ],
+)]
 final class Schemas
 {
 }

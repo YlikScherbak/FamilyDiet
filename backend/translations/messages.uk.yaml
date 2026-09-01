@@ -40,3 +40,8 @@ error:
         too_large: 'Налаштування завелике'
     shopping:
         range_too_long: 'Період списку закупівель — не більше %days% днів'
+    day_template:
+        name_and_date_required: 'Потрібні назва шаблону і дата у форматі YYYY-MM-DD'
+        name_taken: 'Шаблон «%name%» вже існує'
+        day_empty: 'На цю дату немає жодного запису меню — нема чого зберігати'
+        date_required: 'Потрібна дата у форматі YYYY-MM-DD'
