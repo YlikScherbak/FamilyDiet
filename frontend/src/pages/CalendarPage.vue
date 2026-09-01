@@ -93,7 +93,9 @@ async function loadTemplates() {
 }
 
 async function saveDayAsTemplate() {
-  const name = (window.prompt(t('menu.templateNamePrompt', { date: templateDate.value })) ?? '').trim()
+  const name = (
+    window.prompt(t('menu.templateNamePrompt', { date: templateDate.value })) ?? ''
+  ).trim()
   if (!name) return
   try {
     const created = await api.post('/day-templates', { name, date: templateDate.value })
